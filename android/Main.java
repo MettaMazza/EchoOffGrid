@@ -189,11 +189,17 @@ public class Main extends Activity {
                 if(request.isForMainFrame() && request.hasGesture() && "https".equals(uri.getScheme()) && view.getUrl()!=null){
                     Uri page=Uri.parse(view.getUrl());
                     if("127.0.0.1".equals(page.getHost()) && page.getPort()==active &&
-                       ("/opengov".equals(page.getPath()) || "/opengov/portal".equals(page.getPath()))){
+                       ("/opengov".equals(page.getPath()) || "/opengov/portal".equals(page.getPath()) || "/openintel".equals(page.getPath()))){
                         try{startActivity(new Intent(Intent.ACTION_VIEW,uri));}
                         catch(android.content.ActivityNotFoundException e){Toast.makeText(Main.this,"No web browser installed",Toast.LENGTH_SHORT).show();}
                         return true;
                     }
+                }
+                if(local && request.isForMainFrame() && "/openintel/camera".equals(uri.getPath())){
+                    Uri page = Uri.parse(view.getUrl());
+                    if(request.hasGesture() && "/openintel".equals(page.getPath()) && page.getPort()==active)
+                        startActivity(new Intent(Main.this,IntelCamera.class));
+                    return true;
                 }
                 if(local && request.isForMainFrame() && "/private-open".equals(uri.getPath())){
                     Uri page=Uri.parse(view.getUrl());

@@ -15,6 +15,8 @@ import http.client
 import private_browser
 import media_previews
 import history_view
+from intel import screen as intel_screen
+from intel.service import Intel
 import opengov
 import personal_library
 import narrator
@@ -229,6 +231,7 @@ LIVE_UPDATES = """
 
 
 STYLE += Path(__file__).with_name("workspace.css").read_text()
+STYLE += (intel_screen.ROOT/"style.css").read_text()
 LIVE_UPDATES += Path(__file__).with_name("workspace.js").read_text()
 LIVE_UPDATES += Path(__file__).with_name("reader.js").read_text()
 
@@ -255,7 +258,7 @@ def pixel_mark():
 WORKSTATION_MARK = pixel_mark()
 
 def page(section, body, token=""):
-    links = [("/", "Home"), ("/library", "Library"), ("/news","News"), ("/opengov","OpenGov"), ("/history","History"), ("/wikipedia", "Wikipedia"),
+    links = [("/", "Home"), ("/library", "Library"), ("/news","News"), ("/openintel","OpenIntel"), ("/opengov","OpenGov"), ("/history","History"), ("/wikipedia", "Wikipedia"),
              ("/dictionary", "Dictionary"), ("/maps", "Maps"), ("/downloads", "Downloads"),
              ("/private-browser","Private Browser"), ("/echolite", "EchoLite"), ("/devices", "Devices")]
     primary = {"Compare packets":"Devices","Receiver log":"Devices","ScotMesh reports":"Devices",
@@ -275,7 +278,7 @@ def page(section, body, token=""):
 <select id=read-speed aria-label="Playback speed"><option>0.75×</option><option selected>1×</option><option>1.25×</option><option>1.5×</option><option>2×</option></select>
 <output id=read-status role=status>Emma · Offline voice</output></aside>
 <div id=read-selection hidden><a id=define-selection hidden>Look up word</a><button id=speak-selection>▶ Play selection</button></div>
-<main>{f"<h2>{escape(section)}</h2>" if section != "Home" else ""}{body}</main></html>"""
+<main>{f"<h2>{escape(section)}</h2>" if section not in {"Home","OpenIntel"} else ""}{body}</main></html>"""
 
 
 def checkbox(name, value, label, selected, detail=""):
@@ -438,6 +441,8 @@ class WorkspaceServer(ThreadingHTTPServer):
             self.downloads.worker.join()
         if getattr(self,"private_browser",None):
             self.private_browser.close()
+        if getattr(self,"intel",None):
+            self.intel.close()
         if self.wiki:
             self.wiki.close()
         if self.news:
@@ -474,7 +479,7 @@ class Dashboard(BaseHTTPRequestHandler):
             stamp = activity.get(kind)
             metrics.append(("/evidence?source=" + source, stamp[11:19] if stamp else "—", title, stamp[:10] + " UTC" if stamp else "No imported observation"))
         stats = "".join(f'<a href="{url}"><b>{escape(value)}</b>{label}<small>{escape(detail)}</small></a>' for url,value,label,detail in metrics)
-        live=f'<section id="archive-live" data-url="/home-status"><div class=metrics>{stats}</div></section>'
+        live=f'<section id="archive-live" data-url="/home-status"><div class=metrics>{stats}</div>{self.server.intel.home()}</section>'
         newsroom='<div id="home-news">'+self.server.news.render(self.server.token,home=True)+'</div>'
         if summary_only:
             self.send_page("Home",live+newsroom)
@@ -638,6 +643,7 @@ class Dashboard(BaseHTTPRequestHandler):
                 rows=db.execute("SELECT id,kind,title FROM discovery_item WHERE kind=? AND filename IS NOT NULL ORDER BY title",(name,)).fetchall()
             if kind in {"pictures","documents"}:
                 body=self.import_form(kind)+body+category_grid(name,self.personal_cards(rows,{name}),"shelf")
+                if kind=="documents":body+=self.server.intel.library()
                 self.send_page(name,body);return
             saved=rows
         body=self.import_form(kind)+body
@@ -817,8 +823,8 @@ class Dashboard(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def atlas(self, path):
-        if path in ("", "index.html"):
-            payload = Path(__file__).with_name("atlas.html").read_bytes()
+        if path in ("", "index.html","openintel.html"):
+            payload = ((intel_screen.ROOT/"map.html") if path=="openintel.html" else Path(__file__).with_name("atlas.html")).read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
@@ -1230,6 +1236,9 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
             self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store")
             self.send_header("Content-Length",str(len(data)));self.end_headers();self.wfile.write(data)
             return
+        if target.path == "/openintel" or target.path.startswith("/openintel/"):
+            intel_screen.read(self,target.path,params)
+            return
         if target.path == "/dashboard.js":
             payload = LIVE_UPDATES.encode()
             self.send_response(200)
@@ -1474,7 +1483,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if self.local_request() and self.path == "/evidence/import":
             self.import_evidence()
             return
-        if not self.local_request() or self.path not in {"/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
+        if not self.local_request() or self.path not in {"/openintel/action", "/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
             self.send_error(403)
             return
         length = self.headers.get("Content-Length", "")
@@ -1490,6 +1499,8 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if not hmac.compare_digest(token, self.server.token.encode()):
             self.send_error(403)
             return
+        if self.path == "/openintel/action":
+            intel_screen.write(self,fields);return
         if self.path == "/storage":
             root = self.server.database.parent
             action = fields.get("action", [""])[0]
@@ -1667,6 +1678,7 @@ def create_server(port, database_path, echolite=None, kit=None):
         edition_folder = database_path.parent / "Wikipedia"
         server.wiki = Wiki(server.kit, echolite, edition_folder)
         server.editions = Editions(edition_folder, server.wiki)
+        server.intel = Intel(database_path)
         server.chat_lock = Lock()
         def maintain_cache():
             while not server.downloads.stopping.is_set():

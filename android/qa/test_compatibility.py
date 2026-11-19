@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from zipfile import ZipFile
 
@@ -15,7 +16,8 @@ from wifi import Companion
 from merge import merge
 
 class PlatformSync(unittest.TestCase):
-    def test_native_packages_and_portable_media(self):
+    @patch("storage_policy.shutil.disk_usage", return_value=SimpleNamespace(free=100 * 10**9))
+    def test_native_packages_and_portable_media(self, _disk_usage):
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp)
             mac,phone=base/"mac",base/"phone"

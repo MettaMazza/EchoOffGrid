@@ -13,9 +13,9 @@ public class Checks extends Instrumentation {
     WebView web;
     String origin, cookie;
     Bundle results=new Bundle();
-    private boolean historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
+    private boolean intelOnly, historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
     private String filmId;
-    @Override public void onCreate(Bundle args) {super.onCreate(args);historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
+    @Override public void onCreate(Bundle args) {super.onCreate(args);intelOnly=args!=null && "1".equals(args.getString("intel"));historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
     WebView locate(View view) {
         if (view instanceof WebView) return (WebView)view;
         if (view instanceof ViewGroup) {
@@ -270,6 +270,19 @@ public class Checks extends Instrumentation {
                 Thread.sleep(100);
             }
             if(cookie==null) throw new IOException("Local dashboard did not open");
+            if(intelOnly){
+                navigate("/openintel?region=finland&view=sample");
+                for(int i=0;i<100 && !"true".equals(js("!!document.querySelector('.intel-result')"));i++)Thread.sleep(100);
+                if(!"true".equals(js("!!document.querySelector('.intel-result') && document.documentElement.scrollWidth<=innerWidth+1")))throw new IOException("Sample observations or responsive layout failed");
+                js("document.querySelector('.intel-result').click()");
+                if(!"true".equals(js("document.querySelector('#intel-detail').textContent.includes('OFFLINE SAMPLE')")))throw new IOException("Selection did not open");
+                for(int i=0;i<120 && !"true".equals(js("document.querySelector('#intel-map').contentDocument.body.dataset.mapReady==='true'"));i++)Thread.sleep(100);
+                if(!"true".equals(js("document.querySelector('#intel-map').contentDocument.body.dataset.mapReady==='true'")))throw new IOException("Offline map failed to render");
+                historyScreenshot("openintel-mobile");
+                get("/openintel/data?region=finland&view=sample","Fintraffic");
+                results.putString("OpenIntel","PASS · local samples, selection and responsive view");
+                finish(Activity.RESULT_OK,results);return;
+            }
             if(historyOnly){
                 navigate("/history");
                 if(!"true".equals(js("document.querySelectorAll('.h-period').length===10")))throw new IOException("Missing timeline");

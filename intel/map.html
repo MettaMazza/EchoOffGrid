@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' blob: data:; worker-src blob:">
+<link rel="stylesheet" href="vendor/maplibre-gl.css"><style>
+html,body,#map{margin:0;height:100%;background:#16252e;color:#d5f5df;font:14px system-ui}#note{position:absolute;left:8px;bottom:20px;background:#14201e;color:#caf4dc}body .maplibregl-ctrl-attrib{font-size:10px}
+</style><title>OpenIntel observation map</title><div id="map"></div><output id="note" role="status"></output>
+<script src="vendor/maplibre-gl.js"></script><script src="vendor/pmtiles.js"></script><script src="vendor/basemaps.js"></script><script>
+const empty={type:'FeatureCollection',features:[]};
+let map, latest, region;
+let activeBasemap='World';
+async function chooseBasemap(key){
+ const name=key==='aberdeen'?'UK':'World';
+ if(name===activeBasemap)return;
+ const url=new URL(name+'.pmtiles',location.href).href;
+ if(name!=='World'&&!(await fetch(url,{method:'HEAD'})).ok)return;
+ if(region!==key)return;
+ map.getSource('world').setUrl('pmtiles://'+url);
+ activeBasemap=name;
+}
+function tell(type,value){parent.postMessage({openintel:type,value},location.origin)}
+function render(){
+ if(!map||!latest||!map.getSource('observations'))return;
+ const {rows,center,key,selected}=latest;
+ if(key!==region){region=key;chooseBasemap(key).catch(()=>{});map.jumpTo({center,zoom:key==='world'?1.4:6})}
+ const points=[],lines=[];
+ for(const r of rows){
+  points.push({type:'Feature',geometry:{type:'Point',coordinates:[r.lon,r.lat]},properties:{id:r.id,color:r.color,selected:r.id===selected,opacity:r.stale?.48:1}});
+  if(r.id!==selected||!r.trail)continue;
+  let segment=[];
+  const flush=()=>{if(segment.length>1)lines.push({type:'Feature',geometry:{type:'LineString',coordinates:segment},properties:{color:r.color}});segment=[]};
+  for(const pt of r.trail){
+   const prev=segment[segment.length-1];
+   if(prev&&(Math.abs(prev[0]-pt[0])>180 || (pt.length>2 && Math.abs(prev[2]-pt[2])>900)))flush();
+   segment.push(pt);
+  }flush()
+ }
+ map.getSource('observations').setData({type:'FeatureCollection',features:points});
+ map.getSource('tracks').setData({type:'FeatureCollection',features:lines})
+}
+addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==parent)return;
+ if(e.data.openintel==='view'){latest=e.data.value;render()}
+ if(e.data.openintel==='locate'&&map){map.easeTo({center:e.data.value,zoom:Math.max(5,map.getZoom())})}
+});
+try{
+ const protocol=new pmtiles.Protocol();
+ maplibregl.addProtocol('pmtiles',protocol.tile);
+ const url=new URL('World.pmtiles',location.href).href;
+ const tiles=new pmtiles.PMTiles(url);protocol.add(tiles);
+ map=new maplibregl.Map({container:'map',center:[-2,57],zoom:5,attributionControl:true,style:{version:8,
+ glyphs:new URL('vendor/fonts/',location.href).href+'{fontstack}/{range}.pbf',
+ sprite:new URL('vendor/sprites/v4/light',location.href).href,
+ sources:{world:{type:'vector',url:'pmtiles://'+url,attribution:'© OpenStreetMap contributors · Protomaps'}},
+ layers:basemaps.layers('world',basemaps.namedFlavor('dark'),{lang:'en'})}});
+ map.addControl(new maplibregl.NavigationControl({showCompass:false}));
+ map.on('load',()=>{
+  map.addSource('tracks',{type:'geojson',data:empty});map.addSource('observations',{type:'geojson',data:empty});
+  map.addLayer({id:'trails',type:'line',source:'tracks',paint:{'line-color':['get','color'],'line-width':2}});
+  map.addLayer({id:'reports',type:'circle',source:'observations',paint:{'circle-color':['get','color'],'circle-opacity':['get','opacity'],
+  'circle-radius':['case',['get','selected'],9,5],'circle-stroke-width':1.5,'circle-stroke-color':'#18211e'}});
+  map.on('click','reports',e=>tell('select',e.features[0].properties.id));
+  map.on('mouseenter','reports',()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave','reports',()=>map.getCanvas().style.cursor='');
+  document.body.dataset.mapReady='true';render();tell('ready',true)
+ });
+ map.on('error',()=>document.querySelector('#note').textContent='Some map detail is unavailable');
+}catch(e){document.querySelector('#note').textContent='Map rendering unavailable. Select a report below.'}
+tell('ready',true);
+</script></html>

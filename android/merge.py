@@ -12,7 +12,7 @@ def merge(local, snapshot):
         content=local.parent/"Content"
         dst.create_function("has_file",1,lambda n:int(bool(n and Path(n).name==n and (content/n).is_file())))
         with dst:
-            for table in ("evidence", "discovery_page", "gutenberg"):
+            for table in ("evidence", "discovery_page", "gutenberg", "intel_saved"):
                 if table in tables & local_tables:
                     dst.execute(f"INSERT OR IGNORE INTO main.{table} SELECT * FROM peer.{table}")
             if "discovery_item" in tables & local_tables:
@@ -59,7 +59,7 @@ def revision(path):
     digest = hashlib.sha256()
     with closing(sqlite3.connect(Path(path).resolve().as_uri()+"?mode=ro",uri=True)) as db:
         tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for table,columns in (("snapshot","source,sha256"),("fetch","source,checked_at,error"),
+        for table,columns in (("intel_saved","id"),("snapshot","source,sha256"),("fetch","source,checked_at,error"),
                               ("evidence","fingerprint"),("discovery_item","id,filename"),
                               ("discovery_file","id,sequence,filename"),("news_story","edition,link,title,summary,published,body"),
                               ("selection","regions,sources"),("news_setting","place")):

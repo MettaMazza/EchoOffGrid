@@ -31,6 +31,8 @@ for file in LICENSE THIRD_PARTY.md archive.py discovery.py catalog.json dashboar
 done
 cp "$project/android/storage_policy.py" "$resources/"
 mkdir -p "$resources/vendor"
+cp -R "$project/intel" "$resources/"
+cp -R "$project/vendor/openintel" "$resources/vendor/"
 cp -R "$project/vendor/history" "$resources/vendor/"
 cp -R "$project/vendor/starter-reference" "$project/vendor/starter-atlas" "$project/vendor/starter-notices" "$resources/vendor/"
 wiki="$(python3 "$project/prepare-starter-wiki.py" "$project/dist/reference")"

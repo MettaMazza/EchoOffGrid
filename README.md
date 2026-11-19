@@ -15,6 +15,10 @@ EchoOffGrid is in active development. [Installation notes and SHA-256 checksums]
 
 ![Audiobook and game shelves in an earlier Mac development build](docs/library.png)
 
+## OpenIntel in the development build
+
+Explore aircraft, vessels, public cameras, satellite passes, Earth imagery, earthquakes and buoy readings on the offline map. Start with the bundled samples or choose a region and turn on live updates. Saved observations open from Library → Documents. [Coverage and offline use](docs/openintel.md)
+
 ## First launch
 
 For the packaged preview, open **EchoOffGrid.pkg** on a Mac or install **EchoOffGrid-arm64.apk** on Android. Open **Wikipedia** and search for *ocean*. The preview packages include the Simple English Wikipedia mini archive, a starter English dictionary, a world overview map, illustrated field notes and sample media. The wiki contains article introductions. Larger ZIM collections can be connected separately. Each device can open its starter library before it is paired.

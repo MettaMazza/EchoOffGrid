@@ -36,9 +36,9 @@ with ZipFile(out/'package/assets/runtime.zip','w',ZIP_DEFLATED) as z:
             z.write(p,Path('lib/python3.14')/p.relative_to(std))
     for name in ('dashboard.py','private_browser.py','browser_proxy.py','media_previews.py','history_view.py','govports.py','government-portals.json','opengov.py','lend-lease-1941.pdf','personal_library.py','puzzle-mobile.html','references.py','wiki_editions.py','archive.py','news.py','publishers.py','library_sources.py','spotlight.py','discover-starters.json','world-population.json','discovery.py','evidence.py','narrator.py','kit_library.py','workspace.css','workspace.js','reader.js','atlas.html','puzzles.json','catalog.json','reading-words.txt'):
         z.write(name,site/name)
-    for root in ("vendor/history","vendor/starter-atlas", "vendor/starter-notices"):
+    for root in ("intel","vendor/openintel","vendor/history","vendor/starter-atlas", "vendor/starter-notices"):
         for p in Path(root).rglob("*"):
-            if p.is_file(): z.write(p,site/p)
+            if p.is_file() and "__pycache__" not in p.parts: z.write(p,site/p)
     for p in (Path("vendor/starter-reference/reading-dictionary.db"),
               Path("vendor/starter-reference/NOTICE.md")):
         z.write(p,site/p)

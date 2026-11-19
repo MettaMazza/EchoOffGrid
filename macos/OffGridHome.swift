@@ -458,6 +458,47 @@ final class LocalServers {
 }
 
 #if ECHO_STANDALONE
+final class IntelCameraPanel: NSView, WKNavigationDelegate {
+    private let player: WKWebView
+
+    init(parent: NSView) {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        config.mediaTypesRequiringUserActionForPlayback = []
+        player = WKWebView(frame: .zero, configuration: config)
+        super.init(frame: parent.bounds)
+        autoresizingMask = [.width, .height]
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        let close = NSButton(title: "‹ Back to OpenIntel", target: self, action: #selector(dismiss))
+        for view in [close as NSView, player] { view.translatesAutoresizingMaskIntoConstraints = false; addSubview(view) }
+        NSLayoutConstraint.activate([
+            close.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            close.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            player.topAnchor.constraint(equalTo: close.bottomAnchor, constant: 8),
+            player.leadingAnchor.constraint(equalTo: leadingAnchor), player.trailingAnchor.constraint(equalTo: trailingAnchor),
+            player.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+        parent.addSubview(self)
+        player.navigationDelegate = self
+        player.load(URLRequest(url: URL(string: "https://www.mauirealestate.net/live/embed.html")!))
+    }
+
+    required init?(coder: NSCoder) { fatalError("Use init(parent:)") }
+
+    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        let approved = ["www.mauirealestate.net", "live5.brownrice.com", "player.brownrice.com"]
+        let url = action.request.url
+        decisionHandler(url?.scheme == "https" && approved.contains(url?.host ?? "") ? .allow : .cancel)
+    }
+
+    @objc private func dismiss() {
+        player.stopLoading()
+        removeFromSuperview()
+    }
+}
+
 @available(macOS 14.0, *)
 final class PrivateBrowserPanel:NSView, WKNavigationDelegate {
     let tab:WKWebView
@@ -651,13 +692,19 @@ struct WorkspaceWebView: NSViewRepresentable {
             let url = action.request.url
             if let url, url.scheme=="https", action.navigationType == .linkActivated,
                action.sourceFrame.isMainFrame, let current=webView.url, current.host==address.host,
-               current.port==address.port, ["/opengov","/opengov/portal"].contains(current.path) {
+               current.port==address.port, ["/opengov","/opengov/portal","/openintel"].contains(current.path) {
                 decisionHandler(.cancel)
                 NSWorkspace.shared.open(url)
                 return
             }
             guard url?.scheme == "http", url?.host == address.host, url?.port == address.port else {
                 decisionHandler(.cancel)
+                return
+            }
+            if url?.path == "/openintel/camera" {
+                decisionHandler(.cancel)
+                if action.navigationType == .linkActivated, action.sourceFrame.isMainFrame,
+                   webView.url?.path == "/openintel" { _ = IntelCameraPanel(parent: webView) }
                 return
             }
             if let url,url.path=="/private-open" {

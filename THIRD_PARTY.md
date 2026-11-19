@@ -67,3 +67,7 @@ The bundled Lend-Lease Act is the US Government Publishing Office scan of 55 Sta
 The national portal directory uses factual addresses from [UN DESA’s e-government portal directory](https://ekap.desa.un.org/Resources), supplemented with four jurisdiction entries or addresses. External sites control their content and availability.
 
 The offline History index adapts English Wikipedia text under CC BY-SA 4.0. Article identifiers and attribution travel with the database. [History sources and licence](vendor/history/NOTICE.md)
+
+## OpenIntel
+
+The pure Python components of [sgp4 2.25](https://pypi.org/project/sgp4/2.25/) and [websockets 13.1](https://pypi.org/project/websockets/13.1/) are distributed under MIT and BSD-3-Clause respectively. Their licence texts are in vendor/openintel. Fintraffic data is supplied by Fintraffic / Digitraffic under [CC BY 4.0](https://www.digitraffic.fi/en/terms-of-service/). Aircraft records are supplied by adsb.lol under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Earthquake and buoy samples credit USGS and NOAA respectively. Provider links, dates and access types appear in the OpenIntel catalogue and observation details.

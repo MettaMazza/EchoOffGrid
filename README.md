@@ -4,18 +4,20 @@
 
 **A library you can disconnect.** Open Wikipedia, find a word, read a saved article or pick a video from the shelf. EchoOffGrid keeps the files on your device and can sync a Mac and an Android phone when they meet again.
 
-## Download the first public preview
+## Download public preview 2
 
 | Device | Installer |
 | --- | --- |
-| Apple Silicon Mac · macOS 15 or later | [Download for Mac (.pkg)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-1/EchoOffGrid.pkg) |
-| arm64 Android · Android 9 or later | [Download for Android (.apk)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-1/EchoOffGrid-arm64.apk) |
+| Apple Silicon Mac · macOS 15 or later | [Download for Mac (.pkg)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-2/EchoOffGrid.pkg) |
+| arm64 Android · Android 9 or later | [Download for Android (.apk)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-2/EchoOffGrid-arm64.apk) |
 
-EchoOffGrid is in active development. [Installation notes and SHA-256 checksums](https://github.com/MettaMazza/EchoOffGrid/releases/tag/preview-1)
+On Android, the upper-left menu opens every section. Tap the floating mint icon to launch your installed EchoLite app, or drag it to reposition it.
+
+EchoOffGrid is in active development. [Installation notes and SHA-256 checksums](https://github.com/MettaMazza/EchoOffGrid/releases/tag/preview-2)
 
 ![Audiobook and game shelves in an earlier Mac development build](docs/library.png)
 
-## OpenIntel in the development build
+## OpenIntel
 
 Explore aircraft, vessels, public cameras, satellite passes, Earth imagery, earthquakes and buoy readings on the offline map. Start with the bundled samples or choose a region and turn on live updates. Saved observations open from Library → Documents. [Coverage and offline use](docs/openintel.md)
 

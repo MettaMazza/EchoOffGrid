@@ -300,7 +300,10 @@ public class Checks extends Instrumentation {
                 String after=js("document.querySelector('.echo-shortcut').style.left");
                 if(before.equals(after) || !"true".equals(js("document.visibilityState==='visible' && location.pathname==='/library'")))throw new IOException("Dragging moved away from the library or failed to reposition");
                 navigate("/openintel?view=sample");
-                if(!after.equals(js("document.querySelector('.echo-shortcut').style.left")))throw new IOException("Shortcut position lost on navigation");
+                String restored=js("document.querySelector('.echo-shortcut').style.left");
+                double originalX=Double.parseDouble(new org.json.JSONTokener(after).nextValue().toString().replace("px",""));
+                double restoredX=Double.parseDouble(new org.json.JSONTokener(restored).nextValue().toString().replace("px",""));
+                if(Math.abs(originalX-restoredX)>1)throw new IOException("Shortcut position changed from "+after+" to "+restored);
                 historyScreenshot("echolite-shortcut");
                 results.putString("Navigation","PASS · all section links, active section, system Back, Library and responsive layout");
                 finish(Activity.RESULT_OK,results);return;

@@ -282,6 +282,26 @@ public class Checks extends Instrumentation {
                 js("document.querySelector('.drawer-trigger').click();document.querySelector('#section-drawer a[href=\"/library\"]').click()");
                 for(int i=0;i<80 && !"true".equals(js("location.pathname==='/library' && !!document.querySelector('.drawer-trigger')"));i++)Thread.sleep(100);
                 if(!"true".equals(js("location.pathname==='/library' && !document.querySelector('#section-drawer').open && document.documentElement.scrollWidth<=innerWidth+1")))throw new IOException("Library navigation failed");
+                String target=js("document.querySelector('.echo-shortcut').pathname");
+                if(!"\"/echolite\"".equals(target))throw new IOException("EchoLite shortcut target missing");
+                String before=js("document.querySelector('.echo-shortcut').style.left");
+                org.json.JSONArray point=new org.json.JSONArray(js("(()=>{const r=document.querySelector('.echo-shortcut').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2,innerWidth]})()"));
+                int[] offset=new int[2];runOnMainSync(()->web.getLocationOnScreen(offset));
+                float scale=web.getWidth()/(float)point.getDouble(2);
+                float x=offset[0]+scale*(float)point.getDouble(0), y=offset[1]+scale*(float)point.getDouble(1);
+                float dx=point.getDouble(0)>point.getDouble(2)/2?-72:72;
+                long start=android.os.SystemClock.uptimeMillis();
+                for(int step=0;step<=10;step++){
+                    int action=step==0?MotionEvent.ACTION_DOWN:step==10?MotionEvent.ACTION_UP:MotionEvent.ACTION_MOVE;
+                    MotionEvent touch=MotionEvent.obtain(start,android.os.SystemClock.uptimeMillis(),action,x+scale*dx*step/10,y,0);
+                    touch.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
+                    sendPointerSync(touch);touch.recycle();Thread.sleep(20);
+                }
+                String after=js("document.querySelector('.echo-shortcut').style.left");
+                if(before.equals(after) || !"true".equals(js("document.visibilityState==='visible' && location.pathname==='/library'")))throw new IOException("Dragging moved away from the library or failed to reposition");
+                navigate("/openintel?view=sample");
+                if(!after.equals(js("document.querySelector('.echo-shortcut').style.left")))throw new IOException("Shortcut position lost on navigation");
+                historyScreenshot("echolite-shortcut");
                 results.putString("Navigation","PASS · all section links, active section, system Back, Library and responsive layout");
                 finish(Activity.RESULT_OK,results);return;
             }

@@ -197,7 +197,56 @@
     const open = document.body.classList.toggle('reader-open');
     toggle.setAttribute('aria-expanded', String(open));
   };
+  const shortcut = document.createElement('a');
+  shortcut.href = navigation.querySelector('a[href="/echolite"]').href;
+  shortcut.className = 'echo-shortcut';
+  shortcut.draggable = false;
+  shortcut.setAttribute('aria-label', 'Open EchoLite');
+  shortcut.title = 'Open EchoLite';
+  shortcut.innerHTML = '<svg aria-hidden="true" viewBox="940 136 168 168" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M1060 167a64 64 0 1 0 0 106" stroke-width="12"/><path d="M1046 194a32 32 0 1 0 0 52" stroke-width="8"/><circle cx="1024" cy="220" r="7" fill="currentColor" stroke="none"/></svg>';
+  document.body.append(shortcut);
+
+  const clamp = value => Math.min(1, Math.max(0, value));
+  const saved = document.cookie.match(/(?:^|; )echo_shortcut=(0|1|0\.\d+),(0|1|0\.\d+)(?:;|$)/);
+  let position = saved ? [Number(saved[1]), Number(saved[2])] : [1, .77];
+  let drag, suppressClick = false;
+  function travel() {
+    return [Math.max(1, document.documentElement.clientWidth - shortcut.offsetWidth - 16),
+            Math.max(1, window.innerHeight - shortcut.offsetHeight - 16)];
+  }
+  function place() {
+    if (!shortcut.offsetWidth) return;
+    const [width,height] = travel();
+    shortcut.style.left = (8 + position[0] * width) + 'px';
+    shortcut.style.top = (8 + position[1] * height) + 'px';
+  }
+  shortcut.addEventListener('pointerdown', e => {
+    if (!e.isPrimary || e.button !== 0) return;
+    suppressClick = false;
+    drag = {id:e.pointerId, x:e.clientX, y:e.clientY, start:position.slice(), moved:false};
+    shortcut.setPointerCapture(e.pointerId);
+  });
+  shortcut.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx,dy) < 7) return;
+    drag.moved = true;
+    const [width,height] = travel();
+    position = [clamp(drag.start[0] + dx/width), clamp(drag.start[1] + dy/height)];
+    place();
+  });
+  function finishDrag(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    suppressClick = drag.moved;
+    if (drag.moved) document.cookie = 'echo_shortcut=' + position.map(n=>Number(n.toFixed(4))).join(',') + '; Path=/; Max-Age=31536000; SameSite=Strict';
+    drag = null;
+  }
+  shortcut.addEventListener('pointerup', finishDrag);
+  shortcut.addEventListener('lostpointercapture', finishDrag);
+  shortcut.addEventListener('click', e => { if (suppressClick && e.detail !== 0) e.preventDefault(); suppressClick = false; });
+  window.addEventListener('resize', place);
   document.body.classList.add('mobile-ready');
+  place();
 })();
 
 const mainVideo = document.querySelector('main video[controls]');

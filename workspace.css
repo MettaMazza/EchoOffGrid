@@ -245,3 +245,10 @@ button.workstation-back:hover,button.workstation-back:focus-visible{background:#
 }
 
 @keyframes section-drawer-in{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+
+.echo-shortcut{display:none}
+@media(max-width:699px),(pointer:coarse) and (max-height:600px){
+ .mobile-ready .echo-shortcut{display:grid;place-items:center;position:fixed;z-index:8;box-sizing:border-box;width:48px;height:48px;border-radius:50%;border:1px solid #83ba99;color:#bde5c9;background:#192c23;box-shadow:0 2px 8px #0008;touch-action:none;user-select:none;-webkit-user-select:none}
+ .echo-shortcut svg{width:32px;height:32px;pointer-events:none}
+ .echo-shortcut:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
+}

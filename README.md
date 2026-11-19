@@ -4,7 +4,14 @@
 
 **A library you can disconnect.** Open Wikipedia, find a word, read a saved article or pick a video from the shelf. EchoOffGrid keeps the files on your device and can sync a Mac and an Android phone when they meet again.
 
-**Active development · Apple Silicon macOS 15+ · arm64 Android preview**
+## Download the first public preview
+
+| Device | Installer |
+| --- | --- |
+| Apple Silicon Mac · macOS 15 or later | [Download for Mac (.pkg)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-1/EchoOffGrid.pkg) |
+| arm64 Android · Android 9 or later | [Download for Android (.apk)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-1/EchoOffGrid-arm64.apk) |
+
+EchoOffGrid is in active development. [Installation notes and SHA-256 checksums](https://github.com/MettaMazza/EchoOffGrid/releases/tag/preview-1)
 
 ![Audiobook and game shelves in an earlier Mac development build](docs/library.png)
 

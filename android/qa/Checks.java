@@ -13,9 +13,9 @@ public class Checks extends Instrumentation {
     WebView web;
     String origin, cookie;
     Bundle results=new Bundle();
-    private boolean intelOnly, historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
+    private boolean drawerOnly, intelOnly, historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
     private String filmId;
-    @Override public void onCreate(Bundle args) {super.onCreate(args);intelOnly=args!=null && "1".equals(args.getString("intel"));historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
+    @Override public void onCreate(Bundle args) {super.onCreate(args);drawerOnly=args!=null && "1".equals(args.getString("drawer"));intelOnly=args!=null && "1".equals(args.getString("intel"));historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
     WebView locate(View view) {
         if (view instanceof WebView) return (WebView)view;
         if (view instanceof ViewGroup) {
@@ -270,6 +270,21 @@ public class Checks extends Instrumentation {
                 Thread.sleep(100);
             }
             if(cookie==null) throw new IOException("Local dashboard did not open");
+            if(drawerOnly){
+                navigate("/openintel?view=sample");
+                js("document.querySelector('.drawer-trigger').click()");
+                String layout=js("(()=>{const d=document.querySelector('#section-drawer'),r=d.getBoundingClientRect();return d.open && r.left < 1 && r.right < innerWidth && [...d.querySelectorAll('a')].map(a=>a.pathname).join() === [...document.querySelectorAll('.workstation-header nav a')].map(a=>a.pathname).join() && d.querySelector('[aria-current=page]').pathname === '/openintel'})()");
+                if(!"true".equals(layout))throw new IOException("Drawer layout, active section or links failed: "+layout);
+                historyScreenshot("navigation-drawer");
+                sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK);
+                Thread.sleep(550);
+                if(!"true".equals(js("location.pathname==='/openintel' && !document.querySelector('#section-drawer').open")))throw new IOException("System Back did not dismiss the drawer");
+                js("document.querySelector('.drawer-trigger').click();document.querySelector('#section-drawer a[href=\"/library\"]').click()");
+                for(int i=0;i<80 && !"true".equals(js("location.pathname==='/library' && !!document.querySelector('.drawer-trigger')"));i++)Thread.sleep(100);
+                if(!"true".equals(js("location.pathname==='/library' && !document.querySelector('#section-drawer').open && document.documentElement.scrollWidth<=innerWidth+1")))throw new IOException("Library navigation failed");
+                results.putString("Navigation","PASS · all section links, active section, system Back, Library and responsive layout");
+                finish(Activity.RESULT_OK,results);return;
+            }
             if(intelOnly){
                 navigate("/openintel?region=finland&view=sample");
                 for(int i=0;i<100 && !"true".equals(js("!!document.querySelector('.intel-result')"));i++)Thread.sleep(100);

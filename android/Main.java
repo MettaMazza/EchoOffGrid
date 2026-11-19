@@ -268,7 +268,13 @@ public class Main extends Activity {
     }
     @Override public void onBackPressed() {
         if (fullVideo != null) { exitVideo(); return; }
-        if (browser != null && browser.canGoBack()) browser.goBack();
+        if (browser == null) { super.onBackPressed(); return; }
+        browser.evaluateJavascript("(() => {const menu=document.querySelector('#section-drawer[open]');if(menu)menu.close();return !!menu})()", result -> {
+            if (!"true".equals(result) && !isFinishing() && !isDestroyed()) navigateBack();
+        });
+    }
+    private void navigateBack() {
+        if (browser.canGoBack()) browser.goBack();
         else super.onBackPressed();
     }
     @Override protected void onDestroy() {

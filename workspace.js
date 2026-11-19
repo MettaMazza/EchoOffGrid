@@ -160,31 +160,38 @@
 (() => {
   const header = document.querySelector('.workstation-header');
   if (!header) return;
-  const links = [...header.querySelectorAll('nav a')];
-  const primary = new Set(['Home', 'Library', 'News', 'EchoLite']);
-  const dock = document.createElement('nav');
-  dock.className = 'mobile-dock';
-  dock.setAttribute('aria-label', 'Main sections');
-  const panel = document.createElement('dialog');
-  panel.className = 'mobile-menu';
-  panel.setAttribute('aria-label', 'More sections');
-  panel.innerHTML = '<div><strong>More sections</strong><button aria-label="Close menu">Close</button></div>';
-  for (const link of links) {
-    const copy = link.cloneNode(true);
-    copy.dataset.icon = copy.textContent;
-    (primary.has(copy.textContent) ? dock : panel).append(copy);
-  }
-  const more = document.createElement('button');
-  more.type = 'button';
-  more.dataset.icon = 'More';
-  more.textContent = 'More';
-  more.setAttribute('aria-haspopup', 'dialog');
-  if (panel.querySelector('[aria-current=page]')) more.className = 'current';
-  more.onclick = () => panel.showModal();
-  panel.querySelector('button').onclick = () => panel.close();
-  panel.onclick = e => { if (e.target === panel && e.clientY < panel.getBoundingClientRect().top) panel.close(); };
-  dock.append(more);
-  document.body.append(dock, panel);
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'drawer-trigger';
+  trigger.setAttribute('aria-label', 'Open navigation');
+  trigger.setAttribute('aria-controls', 'section-drawer');
+  trigger.setAttribute('aria-haspopup', 'dialog');
+  trigger.setAttribute('aria-expanded', 'false');
+  header.prepend(trigger);
+
+  const drawer = document.createElement('dialog');
+  drawer.id = 'section-drawer';
+  drawer.setAttribute('aria-labelledby', 'drawer-title');
+  drawer.innerHTML = '<div class="drawer-heading"><strong id="drawer-title">Navigation</strong><button type="button" aria-label="Close navigation">×</button></div>';
+  const navigation = header.querySelector('nav').cloneNode(true);
+  drawer.append(navigation);
+  document.body.append(drawer);
+
+  trigger.onclick = () => {
+    drawer.showModal();
+    trigger.setAttribute('aria-expanded', 'true');
+  };
+  drawer.querySelector('button').onclick = () => drawer.close();
+  drawer.addEventListener('click', event => {
+    if (event.target.closest('a') || (event.target === drawer && event.clientX >= drawer.getBoundingClientRect().right)) drawer.close();
+  });
+  drawer.addEventListener('close', () => {
+    trigger.setAttribute('aria-expanded', 'false');
+    if (trigger.offsetWidth) trigger.focus({preventScroll:true});
+  });
+  const compact = matchMedia('(max-width:699px), (pointer:coarse) and (max-height:600px)');
+  compact.addEventListener('change', () => { if (!compact.matches && drawer.open) drawer.close(); });
+  window.addEventListener('pagehide', () => { if (drawer.open) drawer.close(); });
   const toggle = header.querySelector('.reader-toggle');
   toggle.onclick = () => {
     const open = document.body.classList.toggle('reader-open');

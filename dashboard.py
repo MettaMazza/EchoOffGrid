@@ -39,6 +39,11 @@ from time import monotonic
 from urllib.parse import parse_qs, urlencode, urlsplit, unquote
 
 from archive import CATALOG, binary_format, connect, eligible, feed_text, fetch, search
+try:
+    import storage_policy
+except ModuleNotFoundError:
+    from android import storage_policy
+from wiki_editions import Editions
 from references import Wiki, dictionary
 from kit_library import GROUPS, audio_cover, carousel, category_grid, kit_cards, listing, poster, resolve_asset, send_asset, viewer
 from evidence import KitReceptionLogs, DEFAULT_DATABASE, MAX_LOG_BYTES, capture_receiver, import_records, import_scotmesh, normalized_time, timeline
@@ -474,7 +479,7 @@ class Dashboard(BaseHTTPRequestHandler):
         if summary_only:
             self.send_page("Home",live+newsroom)
             return
-        self.send_page("Home", '<div class=section-head><h2>At a glance</h2><span><button class=next id=cycle>Next discovery →</button> <button class=motion id=motion>Pause rotation</button></span></div>' + live + mix + newsroom + '<small id="connection-status" role=status></small>' + self.collections(preview=True))
+        self.send_page("Home", (self.server.editions.panel(self.server.token) if not self.server.editions.choice.exists() else "") + '<div class=section-head><h2>At a glance</h2><span><button class=next id=cycle>Next discovery →</button> <button class=motion id=motion>Pause rotation</button></span></div>' + live + mix + newsroom + '<small id="connection-status" role=status></small>' + self.collections(preview=True))
 
     def collections(self, preview=False):
         tiles = [
@@ -1318,8 +1323,17 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
             self.send_page("Dictionary", dictionary(self.server.echolite, params.get("q", [""])[0][:160], parse_qs(target.query, keep_blank_values=True).get("prefix", [None])[0], params.get("page", ["1"])[0],params.get("phrases",["0"])[0]=="1", path=getattr(self.server,"dictionary_path",None)))
         elif target.path == "/history":
             self.send_page("History",history_view.article(self.server.wiki,params["read"][0]) if "read" in params else history_view.page(params))
+        elif target.path == "/wiki-progress":
+            data = json.dumps({"active": bool(self.server.editions.active), "status": self.server.editions.progress()}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         elif target.path == "/wikipedia":
-            self.send_page("Wikipedia", self.server.wiki.page(params.get("book", [""])[0], params.get("q", [""])[0][:300]))
+            self.server.wiki.refresh()
+            self.send_page("Wikipedia", self.server.editions.panel(self.server.token) + self.server.wiki.page(params.get("book", [""])[0], params.get("q", [""])[0][:300]))
         elif target.path.startswith("/zim/"):
             try:
                 self.server.wiki.serve(self)
@@ -1360,7 +1374,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                     companion=f'<article><h3>Paired device sync</h3><strong>{escape(status["state"])}</strong><small>{checked}</small></article>'
                 except (OSError,KeyError,ValueError,TypeError):
                     pass
-            self.send_page("Devices", companion + '<h3>HackRF &amp; mesh</h3><div class=feature-grid>' + "".join(f'<a class=tile href="{url}"><strong>{title}</strong><small>{detail}</small></a>' for url,title,detail in links) + '</div>')
+            self.send_page("Devices", storage_policy.storage_page(self.server.database.parent, self.server.token) + companion + '<h3>HackRF &amp; mesh</h3><div class=feature-grid>' + "".join(f'<a class=tile href="{url}"><strong>{title}</strong><small>{detail}</small></a>' for url,title,detail in links) + '</div>')
         elif target.path.startswith("/preview/"):
             kind, _, relative = target.path[len("/preview/"):].partition("/")
             asset = resolve_asset(self.server.kit,kind,relative)
@@ -1460,7 +1474,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if self.local_request() and self.path == "/evidence/import":
             self.import_evidence()
             return
-        if not self.local_request() or self.path not in {"/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
+        if not self.local_request() or self.path not in {"/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
             self.send_error(403)
             return
         length = self.headers.get("Content-Length", "")
@@ -1475,6 +1489,30 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         token = fields.get("token", [""])[0].encode()
         if not hmac.compare_digest(token, self.server.token.encode()):
             self.send_error(403)
+            return
+        if self.path == "/storage":
+            root = self.server.database.parent
+            action = fields.get("action", [""])[0]
+            if action == "allow":
+                (root/storage_policy.ALLOWANCE).write_text(str(datetime.now(timezone.utc).timestamp()+600))
+            elif action == "protect":
+                (root/storage_policy.ALLOWANCE).unlink(missing_ok=True)
+            elif action == "clean":
+                storage_policy.clean(root, clear=True)
+            else:
+                self.send_error(400); return
+            self.send_response(303)
+            self.send_header("Location", "/devices")
+            self.end_headers()
+            return
+        if self.path == "/wiki-edition":
+            try:
+                self.server.editions.select(fields.get("edition", [""])[0])
+            except ValueError as error:
+                self.send_error(400, str(error)); return
+            self.send_response(303)
+            self.send_header("Location", "/wikipedia")
+            self.end_headers()
             return
         if self.path == "/private-browser":
             session=self.server.private_browser
@@ -1626,8 +1664,19 @@ def create_server(port, database_path, echolite=None, kit=None):
             personal_library.seed_empty_shelves(db, database_path.parent, server.kit)
         server.puzzles = json.loads(Path(__file__).with_name("puzzles.json").read_text())
         server.kit_logs = KitReceptionLogs(server.kit)
-        server.wiki = Wiki(server.kit, echolite)
+        edition_folder = database_path.parent / "Wikipedia"
+        server.wiki = Wiki(server.kit, echolite, edition_folder)
+        server.editions = Editions(edition_folder, server.wiki)
         server.chat_lock = Lock()
+        def maintain_cache():
+            while not server.downloads.stopping.is_set():
+                try:
+                    storage_policy.clean(database_path.parent)
+                except (OSError, sqlite3.Error):
+                    pass
+                if server.downloads.stopping.wait(3600):
+                    break
+        Thread(target=maintain_cache, daemon=True).start()
     except Exception:
         server.server_close()
         raise

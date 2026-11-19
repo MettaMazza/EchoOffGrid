@@ -168,17 +168,32 @@ def dictionary(launcher, term, prefix=None, page="1", phrases=False, *, path=Non
 
 
 class Wiki:
-    def __init__(self, kit, launcher):
-        self.archives = sorted((kit / "02-Reference").glob("*.zim")) if kit else []
-        if launcher:
-            existing = {p.name for p in self.archives}
-            self.archives.extend(p for p in sorted((launcher.parent / "library").glob("*.zim")) if p.name not in existing)
-        self.archives = self.with_starter(self.archives)
+    def __init__(self, kit, launcher, downloads=None):
+        self.folders = [p for p in (kit / "02-Reference" if kit else None,
+                                   launcher.parent / "library" if launcher else None, downloads) if p]
+        self.preferred = None
+        self.archives = self.scan()
         runtimes = launcher.parent.glob("models/runtime/kiwix-tools*/kiwix-serve") if launcher else []
         self.tool = next(iter(sorted(runtimes, reverse=True)), STARTER / "kiwix-serve")
         self.lock = Lock()
         self.process = None
         self.diagnostic_log = None
+
+    def scan(self):
+        files = {}
+        for folder in self.folders:
+            for path in sorted(folder.glob("*.zim")):
+                files.setdefault(path.name, path)
+        return self.with_starter(list(files.values()))
+
+    def refresh(self):
+        with self.lock:
+            archives = self.scan()
+            if archives != self.archives:
+                if self.process and self.process.poll() is None:
+                    self.process.terminate()
+                    self.process.wait()
+                self.archives = archives
 
     @staticmethod
     def with_starter(archives):
@@ -195,7 +210,10 @@ class Wiki:
         if not books or not self.tool:
             return "<p>Run the first-launch setup from the source checkout to download Wikipedia, or open a packaged build with the archive included.</p>"
         if book not in books:
-            book = next((p.stem for p in self.archives if p.name.startswith("wikipedia_en_all")), self.archives[0].stem)
+            book = self.preferred
+        if book not in books:
+            book = next((name for prefix in ("wikipedia_en_all_maxi_", "wikipedia_en-simple_all_maxi_", "wikipedia_en_all_")
+                         for name in sorted(books, reverse=True) if name.startswith(prefix)), self.archives[0].stem)
         options = "".join(f'<option value="{escape(name)}"{" selected" if name == book else ""}>{escape(name)}</option>' for name in sorted(books))
         src = "/zim/search?" + urlencode({"content": book, "pattern": query}) if query else "/zim/content/" + quote(book) + "/"
         return f'<form><select name=book aria-label="Reference collection">{options}</select> <input type=search name=q aria-label="Search articles" placeholder="Search articles…" value="{escape(query)}"> <button>Browse</button></form><div class="wiki-surface"><iframe class="kit-document wiki-frame" sandbox="allow-same-origin" title="Offline articles" src="{escape(src)}"></iframe></div>'
@@ -261,6 +279,18 @@ body{padding:1rem;line-height:1.5;font-family:system-ui,sans-serif}body *{color:
 body a,body a *{color:#8de5bb!important}body a:visited{color:#c0b4e5!important}
 li{padding:.45rem 0}body ::selection{background:#446b59!important;color:white!important}</style>"""
                 base = b'<meta name="color-scheme" content="dark"><style>:root,body{color-scheme:dark;background:#101c18!important;color:#e2f1e8}body a{color:#8de5bb}</style>'
+                # Kiwix text-only archives keep map labels and captions but omit the
+                # map image that normally gives their positioning container height.
+                base += b"""<style>
+.locmap:not(:has(img)), .locmap:not(:has(img)) > div,
+.locmap:not(:has(img)) div:has(> .od) {max-width:100%!important}
+.locmap:not(:has(img)) .od, .locmap:not(:has(img)) .od :is(.pl,.pr,.pv) {
+ position:static!important; width:auto!important; text-align:center!important}
+.locmap:not(:has(img)) .od .id {display:none!important}
+html:root .mw-parser-output .locmap:not(:has(img)) .od,
+html:root .mw-parser-output .locmap:not(:has(img)) .od :is(.pl,.pr,.pv)>div {
+ display:block!important; float:none!important; background:transparent!important; color:inherit!important}
+</style>"""
                 document = response.read()
                 head = re.search(br"<head(?:\s[^>]*)?>", document, re.I)
                 if head:

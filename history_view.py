@@ -75,7 +75,7 @@ def page(params):
     if value("jump"):
         y=parse_year(value("jump"))
         if y is None or y==0 or not FIRST<=y<=LAST:warning="Enter a year from 3,300,000 BCE to 2025 CE. The calendar has no year zero."
-        else:low,high=bounds(y,max(1,min(101,high-low+1)))
+        else:low=high=y
     if q:low,high=FIRST,LAST
     full=low==FIRST and high==LAST
     width=high-low+1
@@ -102,7 +102,7 @@ def page(params):
         rows=db.execute("SELECT * FROM history WHERE "+where+" ORDER BY year,guided DESC LIMIT ? OFFSET ?",[*args,SIZE,(pg-1)*SIZE]).fetchall()
         segments=ERAS if full else [(low+i*width//min(width,10),low+(i+1)*width//min(width,10)-1,"") for i in range(min(width,10))]
         rail=[]
-        for start,end,label in segments:
+        for start,end,label in segments if width>1 else []:
             if start==end==0:continue
             n=db.execute("SELECT count(*) FROM event WHERE year BETWEEN ? AND ?",(start,end)).fetchone()[0]+sum(start<=r[0]<=end for r in LANDMARKS)
             caption=date(start or 1) if start==end else date(start or 1)+" – "+date(end or -1)
@@ -130,14 +130,17 @@ def page(params):
     pager=" ".join(f'<a href="{listing(mode,num)}">{label}</a>' for num,label in ((pg-1,"← Previous"),(pg+1,"Next →")) if 1<=num<=pages)
     intro='''<details class=h-note><summary>How to read the evidence</summary><p>Fossils, objects, oral histories and written records preserve different things. A fossil can be dated while its place in a family tree remains disputed. An atrocity can be extensively documented while individual names and exact totals are still being recovered.</p><p>Early dates are approximate. A year on the timeline can mark the beginning of a process lasting generations. The guided entries discuss competing interpretations and, where relevant, why a once-popular or fringe claim lost support. For early chronology ranges, the timeline uses the first stated date. Ages given in thousands of years ago are plotted approximately relative to 1950. A missing entry means a gap in this collection. Wikipedia’s year pages favour some regions, languages and types of record.</p></details>'''
     era_title="Human history" if full else date(low or 1)+(f" – {date(high)}" if high!=low else "")
-    return (f'<section class="h-atlas"><small>Offline historical atlas</small><h3>{era_title}</h3>'
+    show_entries=not warning and (width==1 or bool(q) or pg>1 or (not full and count<=1))
+    rail_html=(f'<p>{"Scroll through the eras and select one to zoom in." if full else "Select an interval to explore its entries."}</p>'
+               f'<nav class=h-rail aria-label="Scrollable timeline" tabindex=0>{"".join(rail)}</nav>') if rail else ""
+    return (f'<section class="h-atlas" data-show-entries="{int(show_entries)}"><small>Offline historical atlas</small><h3>{era_title}</h3>'
             f'<form class=h-search><label>Search all history<input name=q type=search value="{escape(q)}" placeholder="Place, event, person or idea"></label><button>Search</button></form>'
             f'<form class=h-search><label>Jump to a year<input name=jump placeholder="e.g. 250 BCE" required></label><button>Jump</button></form>'
             f'<p role=status>{escape(warning)}</p><nav class=pills>{" ".join(controls)}</nav>'
-            f'<p>{"Scroll through the eras and select one to zoom in. Each tile spans a different number of years." if full else "Scroll through the period. Select an interval to see it in more detail."}</p>'
-            f'<nav class=h-rail aria-label="Scrollable timeline" tabindex=0>{"".join(rail)}</nav></section>{intro}'
-            f'<div class=section-head><h3>{"Search results" if q else "Guided history" if mode=="landmarks" else "Historical entries"}</h3>'
+            f'{rail_html}</section>{intro}'
+            f'<div class=section-head id=history-entries tabindex="-1"><h3>{"Search results" if q else "Guided history" if mode=="landmarks" else ("Entries for "+date(low) if width==1 else "Historical entries")}</h3>'
             +(f'<a href="{listing("all" if mode=="landmarks" else "landmarks",1)}">{"Show all entries" if mode=="landmarks" else "Show guided history"}</a>' if not q else '<a href="/history">Clear search</a>')+'</div>'
+            +(f'<nav class=pills><a href="/history">All eras</a></nav>' if not full else '')
             +f'<small>{count:,} entries · Page {pg:,} of {pages:,}</small><section class=h-results>'+("".join(cards) or '<p>No indexed entries here. Try a different period or search the <a href="/wikipedia">offline encyclopedia</a>.</p>')+f'</section><nav class=pills>{pager}</nav>'
             +'<p><small>Chronology and year entries excerpted from English Wikipedia, June 2026 archive, through the last complete year, 2025. Wikipedia contributors · CC BY-SA 4.0. Each entry links to its source article.</small></p>')
 

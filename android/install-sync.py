@@ -17,7 +17,7 @@ parser.add_argument("--serial",required=True)
 args=parser.parse_args()
 base=Path.home()/"Library/Application Support/EchoOffGrid/Android"
 base.mkdir(parents=True,exist_ok=True,mode=0o700)
-for name in ("auto_sync.py","compatibility.py","wifi.py","merge.py","peer.py"):
+for name in ("auto_sync.py","storage_policy.py","compatibility.py","wifi.py","merge.py","peer.py"):
     shutil.copy2(Path(__file__).with_name(name),base/name)
 shutil.copy2(args.profile,base/"pair.json")
 (base/"pair.json").chmod(0o600)
@@ -31,7 +31,7 @@ domain="gui/"+str(os.getuid())
 if plist.exists():
     subprocess.run(["launchctl","bootout",domain+"/"+label],capture_output=True)
 with plist.open("wb") as stream:
-    plistlib.dump({"Label":label,"ProgramArguments":[sys.executable,str(base/"auto_sync.py"),str(base)],
+    plistlib.dump({"Label":label,"ProgramArguments":[sys.executable,"-B",str(base/"auto_sync.py"),str(base)],
                    "RunAtLoad":True,"KeepAlive":True,"ThrottleInterval":30,
                    "StandardErrorPath":str(base/"sync.log")},stream)
 subprocess.run(["launchctl","bootstrap",domain,str(plist)],check=True)

@@ -51,6 +51,12 @@ def run(folder):
         temp.write_text(json.dumps({"state":state,"checked":int(time.time())}))
         temp.replace(status)
     while True:
+        log = folder/"sync.log"
+        if log.is_file() and log.stat().st_size > 2*1024**2:
+            with log.open("rb") as stream:
+                stream.seek(-256*1024, 2)
+                tail = stream.read()
+            log.write_bytes(tail)
         try:
             with endpoint(config) as (host,port):
                 if host!="127.0.0.1":
@@ -58,7 +64,8 @@ def run(folder):
                 peer=Companion(host,port,profile,folder/"inventory.json")
                 report("Checking paired phone")
                 peer.sync(Path(config["kit"]),Path(config["archive"]),Path(config["dictionary"]) if config.get("dictionary") else None)
-                report("Up to date")
+                paused = [device for device, flag in (("Mac", peer.mac_paused), ("phone", peer.phone_paused)) if flag]
+                report("Incoming sync paused for storage on " + " and ".join(paused) if paused else "Up to date")
             time.sleep(120)
         except (OSError,HTTPException,sqlite3.Error,ValueError,RuntimeError,subprocess.SubprocessError) as exc:
             report("Waiting for phone" if isinstance(exc,OSError) else "Sync needs attention")

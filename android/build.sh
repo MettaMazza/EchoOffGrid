@@ -34,7 +34,7 @@ with ZipFile(out/'package/assets/runtime.zip','w',ZIP_DEFLATED) as z:
     for p in std.rglob('*'):
         if p.is_file() and not {'__pycache__','test','tests','idlelib','ensurepip','tkinter'}.intersection(p.relative_to(std).parts):
             z.write(p,Path('lib/python3.14')/p.relative_to(std))
-    for name in ('dashboard.py','private_browser.py','browser_proxy.py','media_previews.py','history_view.py','govports.py','government-portals.json','opengov.py','lend-lease-1941.pdf','personal_library.py','puzzle-mobile.html','references.py','archive.py','news.py','publishers.py','library_sources.py','spotlight.py','discover-starters.json','world-population.json','discovery.py','evidence.py','narrator.py','kit_library.py','workspace.css','workspace.js','reader.js','atlas.html','puzzles.json','catalog.json','reading-words.txt'):
+    for name in ('dashboard.py','private_browser.py','browser_proxy.py','media_previews.py','history_view.py','govports.py','government-portals.json','opengov.py','lend-lease-1941.pdf','personal_library.py','puzzle-mobile.html','references.py','wiki_editions.py','archive.py','news.py','publishers.py','library_sources.py','spotlight.py','discover-starters.json','world-population.json','discovery.py','evidence.py','narrator.py','kit_library.py','workspace.css','workspace.js','reader.js','atlas.html','puzzles.json','catalog.json','reading-words.txt'):
         z.write(name,site/name)
     for root in ("vendor/history","vendor/starter-atlas", "vendor/starter-notices"):
         for p in Path(root).rglob("*"):
@@ -50,7 +50,7 @@ with ZipFile(out/'package/assets/runtime.zip','w',ZIP_DEFLATED) as z:
         z.write(p,site/p)
     for p in Path('vendor/puzzle-covers').glob('*.png'):
         z.write(p,site/p)
-    for name in ('mobile.py','compatibility.py','merge.py','peer.py','voice.py'):
+    for name in ('mobile.py','storage_policy.py','compatibility.py','merge.py','peer.py','voice.py'):
         z.write(Path('android')/name,site/name)
     import os
     icu=Path(os.environ['KIWIX_ICU_DATA'])
@@ -76,5 +76,7 @@ key="$out/review.jks"
 if [ ! -f "$key" ]; then
     (umask 077; keytool -genkeypair -keystore "$key" -storepass android -keypass android -alias review -dname 'CN=EchoOffGrid Local Review' -keyalg RSA -validity 3650)
 fi
-"$build/apksigner" sign --ks "$key" --ks-pass pass:android --out "$out/EchoOffGrid.apk" "$out/aligned.apk"
+# Use complete APK installs. A failed ADB incremental stream can remove the installed app.
+rm -f "$out/EchoOffGrid.apk.idsig"
+"$build/apksigner" sign --v4-signing-enabled false --ks "$key" --ks-pass pass:android --out "$out/EchoOffGrid.apk" "$out/aligned.apk"
 "$build/apksigner" verify "$out/EchoOffGrid.apk"

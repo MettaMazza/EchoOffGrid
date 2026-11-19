@@ -15,6 +15,8 @@ from threading import Thread, Lock
 from urllib.parse import unquote, urlsplit
 import json
 
+from storage_policy import fits, capacity
+
 PORT = 38779
 TYPES = {".txt", ".pdf", ".zim", ".pmtiles", ".js", ".css", ".json", ".pbf", ".png", ".jpg", ".html", ".wasm", ".mp3", ".ogg", ".wav", ".m4a", ".mp4", ".m4v", ".webm", ".ogv", ".epub", ".zip"}
 
@@ -66,6 +68,8 @@ def serve(root, pair, credentials):
                 return self.send_error(403)
             if self.path == "/status":
                 return self.respond(b"EchoOffGrid")
+            if self.path == "/intake":
+                return self.respond(json.dumps({"available": capacity(root)}).encode())
             if self.path == "/revision":
                 from merge import revision
                 return self.respond(revision(root/"archive.sqlite3").encode())
@@ -133,7 +137,7 @@ def serve(root, pair, credentials):
                 length=int(self.headers["Content-Length"])
             except (ValueError,TypeError):
                 return self.send_error(411)
-            if len(digest)!=64 or length<0 or length>shutil.disk_usage(root).free-16*1024**2:
+            if len(digest)!=64 or not fits(root,length):
                 return self.send_error(507)
             asset.parent.mkdir(parents=True,exist_ok=True)
             tmp=asset.with_name(asset.name+"."+secrets.token_hex(8)+".partial")
@@ -142,6 +146,8 @@ def serve(root, pair, credentials):
                 with tmp.open("xb") as out:
                     remaining=length
                     while remaining:
+                        if not fits(root, remaining):
+                            return self.send_error(507, "Incoming sync paused for local storage")
                         block=self.rfile.read(min(1024**2,remaining))
                         if not block:
                             return self.send_error(400)
@@ -173,5 +179,10 @@ def serve(root, pair, credentials):
             except (OSError,TimeoutError):
                 return
     listener=Listener(("",PORT),Handler)
+    # A previous process may have stopped in the middle of an atomic receive.
+    for part in root.rglob("*.partial"):
+        original = re.fullmatch(r"(.+)\.[0-9a-f]{16}\.partial", part.relative_to(root).as_posix())
+        if original and portable(original[1]) and not part.is_symlink():
+            part.unlink(missing_ok=True)
     Thread(target=listener.serve_forever,daemon=True).start()
     return listener

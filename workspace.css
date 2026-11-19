@@ -232,3 +232,14 @@ button.workstation-back:hover,button.workstation-back:focus-visible{background:#
 .h-period{display:grid;align-content:space-between;gap:.65rem;flex:0 0 min(13rem,72vw);padding:1rem;background:#172221;color:inherit;border-top:3px solid #91cdb6;text-decoration:none;scroll-snap-align:start}.h-period:nth-child(3n+2){border-color:#bcb2d8}.h-period:nth-child(3n){border-color:#dfba89}.h-period:hover,.h-period:focus-visible{background:#243631}
 .h-period small,.h-period span,.h-entry small{color:#b4c9c0}.h-note{padding:1rem 0;border-bottom:1px solid #35443e}.h-note summary{cursor:pointer;color:#a4e4c9}.h-note p{max-width:78ch}
 .h-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:1rem}.h-entry{border-left:3px solid #648c7f;background:#1a2225;padding:1rem;min-width:0;overflow-wrap:anywhere}.h-entry h3{font:600 1.35rem Georgia,serif;margin:.65rem 0}.h-entry p{line-height:1.55}.h-entry nav{display:flex;gap:1rem;flex-wrap:wrap}
+
+.h-rail{flex-wrap:nowrap;align-items:stretch}
+.h-atlas .pills{flex-wrap:wrap;overflow:visible}
+#history-entries{scroll-margin-top:4.5rem;flex-wrap:wrap}
+@media(max-width:699px){
+ .h-atlas .h-search{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;width:100%;margin:0 0 .8rem}
+ .h-atlas .h-search label{grid-template-columns:minmax(0,1fr)}
+ .h-atlas .h-search input{width:100%;max-width:100%;min-width:0}
+ .h-atlas .h-search button{min-height:42px}
+ #history-entries{scroll-margin-top:.8rem}
+}

@@ -42,6 +42,7 @@ def start(root, native, token):
     import json
     import logging
     import time
+    from storage_policy import fits
     from merge import merge
     from peer import serve
     from peer import portable
@@ -77,16 +78,13 @@ def start(root, native, token):
             try:
                 if snapshot.exists():
                     stamp = snapshot.stat().st_mtime_ns
-                    if stamp != previous:
+                    if stamp != previous and fits(root, snapshot.stat().st_size*2):
                         merge(server.database, snapshot)
                         previous = stamp
                         status=root/"sync-status.pending"
                         status.write_text(json.dumps({"state":"Desktop archive synced","checked":int(time.time())}))
                         status.replace(server.companion_status)
-                archives = server.wiki.with_starter(sorted((kit / "02-Reference").glob("*.zim")))
-                if set(archives) != set(server.wiki.archives):
-                    server.wiki.close()
-                    server.wiki.archives = archives
+                server.wiki.refresh()
             except Exception:
                 logging.exception("Companion sync")
             time.sleep(5)

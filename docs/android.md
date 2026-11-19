@@ -8,6 +8,8 @@ Install the arm64 review APK and open EchoOffGrid. First launch extracts the bun
 
 ## Pair a Mac
 
+For USB development installs, use `adb install --no-incremental -r EchoOffGrid.apk`. This sends the entire APK before launch. Android can uninstall an incrementally installed package and erase its app data if its install stream fails after reporting success.
+
 Install the review APK on an arm64 Android device, open it once, and connect it by USB. Use Android's trusted-computer prompt. From the repository, run the following with the paths for your machine. The profile contains a private credential and belongs outside the checkout.
 
 ```sh

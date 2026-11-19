@@ -263,12 +263,81 @@ document.querySelector('.workstation-back')?.addEventListener('click',()=>{
 });
 document.addEventListener('error',e=>{if(e.target instanceof HTMLImageElement && e.target.closest('.publisher-art'))e.target.closest('.publisher-art').classList.add('unavailable');},true);
 
-const historyRail=document.querySelector('.h-rail');
-if(historyRail)historyRail.addEventListener('wheel',event=>{
-  if(event.ctrlKey || event.deltaX || !event.deltaY)return;
-  const max=historyRail.scrollWidth-historyRail.clientWidth;
-  if((event.deltaY>0 && historyRail.scrollLeft<max-1)||(event.deltaY<0 && historyRail.scrollLeft>1)){
-    event.preventDefault();
-    historyRail.scrollLeft+=event.deltaY*(event.deltaMode===1?16:1);
+(() => {
+  const main = document.querySelector('main');
+  if (!main?.querySelector('.h-atlas')) return;
+  let pending;
+  function position(initial = false) {
+    const entries = main.querySelector('#history-entries');
+    if (main.querySelector('.h-atlas').dataset.showEntries === '1') {
+      entries.focus({preventScroll:true});
+      entries.scrollIntoView({block:'start'});
+    } else if (!initial) {
+      main.querySelector('.h-atlas').scrollIntoView({block:'start'});
+    }
   }
-},{passive:false});
+  async function update(url) {
+    pending?.abort();
+    const request = new AbortController();
+    pending = request;
+    main.setAttribute('aria-busy','true');
+    try {
+      const response = await fetch(url,{signal:request.signal});
+      if (!response.ok) throw Error('Timeline unavailable');
+      const next = new DOMParser().parseFromString(await response.text(),'text/html').querySelector('main');
+      if (!next?.querySelector('.h-atlas')) throw Error('Timeline unavailable');
+      if (request.signal.aborted) return;
+      document.querySelector('#read-stop:not(:disabled)')?.click();
+      history.replaceState(history.state,'',url);
+      main.replaceChildren(...next.childNodes);
+      position();
+    } catch (error) {
+      if (!request.signal.aborted) location.replace(url);
+    } finally {
+      if (pending === request) main.removeAttribute('aria-busy');
+    }
+  }
+  main.addEventListener('click',event=>{
+    const link = event.target.closest('a[href]');
+    if (!link || event.defaultPrevented || event.button!==0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const url = new URL(link.href);
+    if (url.origin!==location.origin || url.pathname!=='/history' || url.searchParams.has('read')) return;
+    event.preventDefault();
+    update(url);
+  });
+  main.addEventListener('submit',event=>{
+    if (!event.target.matches('form.h-search')) return;
+    event.preventDefault();
+    const url = new URL('/history',location.origin);
+    url.search = new URLSearchParams(new FormData(event.target));
+    update(url);
+  });
+  main.addEventListener('wheel',event=>{
+    const rail = event.target.closest('.h-rail');
+    if (!rail || event.ctrlKey || event.deltaX || !event.deltaY) return;
+    const max = rail.scrollWidth-rail.clientWidth;
+    if ((event.deltaY>0 && rail.scrollLeft<max-1) || (event.deltaY<0 && rail.scrollLeft>1)) {
+      event.preventDefault();
+      rail.scrollLeft+=event.deltaY*(event.deltaMode===1?16:1);
+    }
+  },{passive:false});
+  window.addEventListener('pagehide',()=>pending?.abort());
+  position(true);
+})();
+
+(() => {
+  const status = document.querySelector('#wiki-progress[data-running="1"]');
+  if (!status) return;
+  async function update() {
+    try {
+      const response = await fetch('/wiki-progress', {cache:'no-store'});
+      if (response.ok) {
+        const progress = await response.json();
+        status.textContent = progress.status;
+        if (!progress.active) { location.reload(); return; }
+      }
+    } catch (_) {}
+    setTimeout(update, 5000);
+  }
+  setTimeout(update, 5000);
+})();

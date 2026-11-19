@@ -6,6 +6,7 @@ import shlex
 import sqlite3
 import subprocess
 import tempfile
+from storage_policy import MINIMUM, RESERVE
 from compatibility import ContentPolicy
 
 ROOT = "/sdcard/Android/data/dev.echooffgrid.mobile/files/"
@@ -19,6 +20,7 @@ def main():
     parser.add_argument("--kit", required=True, type=Path)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--dictionary", type=Path)
+    parser.add_argument("--allow-low-space", action="store_true", help="Explicitly allow this USB import below the 20 GB reserve")
     args = parser.parse_args()
     adb = [args.adb, "-s", args.serial]
 
@@ -38,6 +40,10 @@ def main():
             return result.returncode == 0 and result.stdout.split()[0] == digest.hexdigest()
         if matches(target):
             return
+        report = shell("df", "-k", ROOT).stdout.splitlines()[-1].split()
+        floor = MINIMUM if args.allow_low_space else RESERVE
+        if int(report[3])*1024 - source.stat().st_size < floor:
+            raise RuntimeError("Incoming USB sync paused for available storage")
         shell("mkdir", "-p", target.rsplit("/", 1)[0])
         subprocess.run(adb + ["push", str(source), partial], check=True, stdout=subprocess.DEVNULL)
         if not matches(partial):

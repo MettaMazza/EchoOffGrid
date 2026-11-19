@@ -24,6 +24,19 @@ public class Checks extends Instrumentation {
         }
         return null;
     }
+    void historyScreenshot(String name) throws Exception {
+        CountDownLatch painted=new CountDownLatch(1);
+        runOnMainSync(()->web.postVisualStateCallback(0,new WebView.VisualStateCallback(){
+            public void onComplete(long id){web.postOnAnimation(()->web.postOnAnimation(painted::countDown));}
+        }));
+        if(!painted.await(5,TimeUnit.SECONDS))throw new IOException("Timed out waiting for rendered timeline");
+        Thread.sleep(350);
+        try(FileOutputStream out=new FileOutputStream(new File(getTargetContext().getExternalFilesDir(null),name+".png"))){
+            android.graphics.Bitmap screen=getUiAutomation().takeScreenshot();
+            if(screen==null)throw new IOException("Screen capture unavailable");
+            try{screen.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}finally{screen.recycle();}
+        }
+    }
     String get(String path, String expected) throws Exception {
         HttpURLConnection c=(HttpURLConnection)new URL(origin+path).openConnection();
         c.setRequestProperty("Cookie",cookie);
@@ -260,8 +273,19 @@ public class Checks extends Instrumentation {
             if(historyOnly){
                 navigate("/history");
                 if(!"true".equals(js("document.querySelectorAll('.h-period').length===10")))throw new IOException("Missing timeline");
-                navigate("/history?jump=1453");
-                navigate("/history?from=1453&to=1453");
+                historyScreenshot("history-layout");
+                navigate("/history?from=1450&to=1459");
+                js("window.zoomTest=history.length;document.querySelector('a.h-period[href*=\"from=1453\"]').click()");
+                for(int i=0;i<60 && !"true".equals(js("location.search.includes('from=1453') && document.activeElement?.id==='history-entries'"));i++)Thread.sleep(100);
+                String atYear=js("location.search.includes('from=1453') && window.zoomTest===history.length && !!document.querySelector('.h-entry') && document.querySelector('#history-entries').getBoundingClientRect().top<innerHeight/3");
+                if(!"true".equals(atYear))throw new IOException("Zoom did not reveal the entries in place: "+atYear);
+                historyScreenshot("history-year");
+                js("document.querySelector('#history-entries + nav a').click()");
+                for(int i=0;i<60 && !"true".equals(js("document.querySelectorAll('.h-period').length===10"));i++)Thread.sleep(100);
+                if(!"true".equals(js("document.querySelectorAll('.h-period').length===10 && window.zoomTest===history.length")))throw new IOException("Could not return to all eras in one tap");
+                js("document.querySelector('input[name=jump]').value='1453';document.querySelector('input[name=jump]').form.requestSubmit()");
+                for(int i=0;i<60 && !"true".equals(js("document.activeElement?.id==='history-entries'"));i++)Thread.sleep(100);
+                if(!"true".equals(js("document.querySelector('#history-entries h3').textContent.includes('1453') && history.length===window.zoomTest")))throw new IOException("Jump did not show the requested year");
                 get("/history?from=1453&to=1453","Constantinople");
                 navigate("/history?q=Rapa%20Nui");
                 get("/history?q=Rapa%20Nui","Population collapse or resilience?");

@@ -19,6 +19,8 @@ EchoOffGrid is in active development. [Installation notes and SHA-256 checksums]
 
 For the packaged preview, open **EchoOffGrid.pkg** on a Mac or install **EchoOffGrid-arm64.apk** on Android. Open **Wikipedia** and search for *ocean*. The preview packages include the Simple English Wikipedia mini archive, a starter English dictionary, a world overview map, illustrated field notes and sample media. The wiki contains article introductions. Larger ZIM collections can be connected separately. Each device can open its starter library before it is paired.
 
+In the development builds, Home offers an illustrated Wikipedia edition on first launch. Select Simple English (2.9 GiB) or full English (118.7 GiB), or keep the included starter. **Devices** shows available storage and the 20 GB incoming-sync reserve.
+
 | Open | What you can do |
 | --- | --- |
 | **Library** | Browse videos, shows, audio, books, pictures, documents, games and software. Open a category for its full grid, import personal files or browse publishers. Local videos have native playback controls and optional autoplay. |

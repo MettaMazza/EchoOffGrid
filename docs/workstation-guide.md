@@ -286,3 +286,13 @@ Only saved files have an offline reader. An indexed title can still need a conne
 ## History
 
 Choose a tile on the era rail to open that period. Use **Earlier**, **Later**, **Zoom in** and **Zoom out** to navigate, or jump directly to a year such as **250 BCE**. Search covers all periods. Guided entries link to Wikipedia and some offer expandable comparisons of evidence and interpretations. The wider index follows the dated material in the bundled snapshot. The timeline itself works offline on both devices.
+
+### Choose an offline Wikipedia edition
+
+On first launch, choose an edition on Home. You can change it later under Wikipedia. The starter works immediately. Illustrated Simple English requires 2.9 GiB and illustrated full English requires 118.7 GiB. Leave the app open while downloading. After a restart it resumes the selected download and checks its SHA-256 before opening the archive.
+
+### Manage storage on either device
+
+Open **Devices → Storage on this device**. Each recipient reserves 20 GB (20 billion bytes), including the size of its pending incoming transfer. Send-only sync can continue while incoming sync is paused. A user can allow intake on that device for ten minutes or restore the reserve immediately. The override retains a 256 MiB minimum. Requested downloads, including Wikipedia, have their own space check.
+
+The workstation trims disposable artwork and generated thumbnails hourly with a 30-day age limit and a 256 MiB budget. Failed artwork lookups expire after 15 minutes. **Clear disposable cache** removes those generated files immediately. Original media, offline archives, recordings, imports, and art associated with saved records are preserved.

@@ -52,6 +52,9 @@ fi
 gzip -t "$index"
 cp "$index" "$dest/gutenberg-index.csv.gz"
 ditto -c -k --keepParent "$template" "$dest/companion-runtime.zip"
+# Cached Python bytecode embeds the path where it was compiled.
+# Remove it only from the release copy, before sealing the bundle.
+find "$output/EchoOffGrid.app/Contents/Resources/PythonRuntime" "$dest" -type f -name '*.pyc' -delete
 codesign --force --sign "${ECHO_CODESIGN_IDENTITY:--}" "$output/EchoOffGrid.app"
 codesign --verify --deep --strict "$output/EchoOffGrid.app"
 mkdir "$stage/payload"

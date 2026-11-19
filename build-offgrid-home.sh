@@ -26,10 +26,11 @@ if [[ "$name" == "EchoOffGrid" ]]; then
         -c 'Set :CFBundleName EchoOffGrid' \
         -c 'Delete :NSDesktopFolderUsageDescription' "$contents/Info.plist"
 fi
-for file in LICENSE THIRD_PARTY.md archive.py discovery.py catalog.json dashboard.py private_browser.py browser_proxy.py media_previews.py personal_library.py puzzle-mobile.html news.py publishers.py library_sources.py spotlight.py discover-starters.json world-population.json narrator.py reader.js workspace.css workspace.js atlas.html evidence.py kit_library.py references.py reading-words.txt puzzles.json; do
+for file in LICENSE THIRD_PARTY.md archive.py discovery.py catalog.json dashboard.py private_browser.py browser_proxy.py media_previews.py history_view.py govports.py government-portals.json opengov.py lend-lease-1941.pdf personal_library.py puzzle-mobile.html news.py publishers.py library_sources.py spotlight.py discover-starters.json world-population.json narrator.py reader.js workspace.css workspace.js atlas.html evidence.py kit_library.py references.py reading-words.txt puzzles.json; do
     cp "$project/$file" "$resources/$file"
 done
 mkdir -p "$resources/vendor"
+cp -R "$project/vendor/history" "$resources/vendor/"
 cp -R "$project/vendor/starter-reference" "$project/vendor/starter-atlas" "$project/vendor/starter-notices" "$resources/vendor/"
 wiki="$(python3 "$project/prepare-starter-wiki.py" "$project/dist/reference")"
 install -m 644 "$wiki" "$resources/vendor/starter-reference/$(basename "$wiki")"

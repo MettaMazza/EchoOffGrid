@@ -61,3 +61,9 @@ The preview packages include a Kiwix Simple English Wikipedia mini archive, a co
 The starter shelves use *Dracula* (Gutenberg #345), a LibriVox opening excerpt from *A Scandal in Bohemia*, and short Blender Foundation previews from *Big Buck Bunny* and *Caminandes 2*. The Big Buck Bunny preview is CC BY 3.0. The Caminandes preview credits the Blender Foundation and Caminandes team. Photographs are individually credited in the app. The original EchoOffGrid field notes accompany those photos. [Picture authors, sources and licences](vendor/picture-samples/credits.json)
 
 Private Browser uses the Tor Project tools on Mac and the Guardian Project's tor-android build on Android. The Android WebView bridge uses AndroidX WebKit. The arm64 companion also uses CPython, SQLite, Android Kiwix libraries, sherpa-onnx and VideoLAN LibVLC. [Browser component provenance and licences](vendor/private-browser/notices/origins.txt) · [Android build inputs](android/prepare-runtime.sh)
+
+The bundled Lend-Lease Act is the US Government Publishing Office scan of 55 Stat. 31 (1941). [Original PDF](https://www.govinfo.gov/content/pkg/STATUTE-55/pdf/STATUTE-55-Pg31.pdf). OpenGov also indexes government publications on demand. Individual publishers’ reuse notices apply to downloaded material.
+
+The national portal directory uses factual addresses from [UN DESA’s e-government portal directory](https://ekap.desa.un.org/Resources), supplemented with four jurisdiction entries or addresses. External sites control their content and availability.
+
+The offline History index adapts English Wikipedia text under CC BY-SA 4.0. Article identifiers and attribution travel with the database. [History sources and licence](vendor/history/NOTICE.md)

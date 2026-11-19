@@ -13,9 +13,9 @@ public class Checks extends Instrumentation {
     WebView web;
     String origin, cookie;
     Bundle results=new Bundle();
-    private boolean privateCheck, gamesOnly, mediaOnly, bridgeOnly;
+    private boolean historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
     private String filmId;
-    @Override public void onCreate(Bundle args) {super.onCreate(args);bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
+    @Override public void onCreate(Bundle args) {super.onCreate(args);historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
     WebView locate(View view) {
         if (view instanceof WebView) return (WebView)view;
         if (view instanceof ViewGroup) {
@@ -163,7 +163,8 @@ public class Checks extends Instrumentation {
     android.view.accessibility.AccessibilityNodeInfo findNode(android.view.accessibility.AccessibilityNodeInfo n,String label,boolean byClass){
         if(n==null)return null;
         String text=String.valueOf(byClass?n.getClassName():n.getText());
-        if(byClass?text.equals(label):text.toLowerCase(java.util.Locale.ROOT).contains(label.toLowerCase(java.util.Locale.ROOT)) && (label.length()>3 || text.equalsIgnoreCase(label)))return n;
+        boolean pageTitle = !label.equals("DuckDuckGo") || "android.widget.TextView".contentEquals(n.getClassName());
+        if(pageTitle && (byClass?text.equals(label):text.toLowerCase(java.util.Locale.ROOT).contains(label.toLowerCase(java.util.Locale.ROOT)) && (label.length()>3 || text.equalsIgnoreCase(label))))return n;
         for(int i=0;i<n.getChildCount();i++){
             android.view.accessibility.AccessibilityNodeInfo found=findNode(n.getChild(i),label,byClass);
             if(found!=null)return found;
@@ -219,16 +220,17 @@ public class Checks extends Instrumentation {
                 long now=android.os.SystemClock.uptimeMillis();
                 sendPointerSync(MotionEvent.obtain(now,now,MotionEvent.ACTION_DOWN,x,y,0));
                 sendPointerSync(MotionEvent.obtain(now,now+60,MotionEvent.ACTION_UP,x,y,0));
-                awaitNode("Congratulations",false);
-                results.putString("Native Tor exit check","PASS");
+                awaitNode("DuckDuckGo",false);
+                results.putString("Private homepage","DuckDuckGo");
                 android.view.accessibility.AccessibilityNodeInfo field=awaitNode("android.widget.EditText",true);
                 Bundle value=new Bundle();
-                value.putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,"https://example.org/");
+                value.putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,"https://check.torproject.org/");
                 field.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT,value);
                 awaitNode("Go",false).performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
-                awaitNode("Example Domain",false);
-                awaitNode("‹ Back",false).performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
                 awaitNode("Congratulations",false);
+                results.putString("Native Tor exit check","PASS");
+                awaitNode("‹ Back",false).performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+                awaitNode("DuckDuckGo",false);
                 results.putString("Native navigation and Back","PASS");
                 awaitNode("Done",false).performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
             }
@@ -255,6 +257,39 @@ public class Checks extends Instrumentation {
                 Thread.sleep(100);
             }
             if(cookie==null) throw new IOException("Local dashboard did not open");
+            if(historyOnly){
+                navigate("/history");
+                if(!"true".equals(js("document.querySelectorAll('.h-period').length===10")))throw new IOException("Missing timeline");
+                navigate("/history?jump=1453");
+                navigate("/history?from=1453&to=1453");
+                get("/history?from=1453&to=1453","Constantinople");
+                navigate("/history?q=Rapa%20Nui");
+                get("/history?q=Rapa%20Nui","Population collapse or resilience?");
+                navigate("/history");
+                results.putString("History","PASS · era rail, date jump, year, search, evidence comparison");
+                finish(Activity.RESULT_OK,results);return;
+            }
+            if(govOnly){
+                navigate("/opengov?source=local&q=Transparency");
+                String key=new org.json.JSONArray(js("Array.from(document.querySelectorAll('.gov-card input[name=item],.gov-card a[href]'),e=>e.value||e.pathname.split('/').pop())")).getString(0);
+                js("document.querySelector('.gov-card button')?.click()");
+                String shelf="";
+                for(int n=0;n<60;n++){
+                    shelf=get("/library/documents","Lend-Lease Act");
+                    if(shelf.contains(key))break;
+                    Thread.sleep(500);
+                }
+                if(!shelf.contains(key))throw new IOException("Downloaded record missing from shelf");
+                get("/content-file/"+key,"%PDF-");
+                navigate("/content/"+key);
+                get("/content/"+key,"kit-document");
+                navigate("/opengov?country=CAN");
+                get("/opengov?country=CAN","www.canada.ca");
+                navigate("/opengov");
+                if(!"true".equals(js("document.querySelectorAll('select[name=country] option').length>190")))throw new IOException("Worldwide directory missing");
+                results.putString("OpenGov","PASS · search, save, shelf, local PDF");
+                finish(Activity.RESULT_OK,results);return;
+            }
             if(privateCheck){privateReview();finish(Activity.RESULT_OK,results);return;}
             if(filmId!=null && filmId.matches("[a-f0-9]{64}")){
                 navigate("/content/"+filmId);

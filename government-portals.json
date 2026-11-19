@@ -1,0 +1,1440 @@
+{
+  "AFG": {
+    "name": "Afghanistan",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.af"
+    ]
+  },
+  "ALB": {
+    "name": "Albania",
+    "region": "Europe",
+    "sites": [
+      "https://www.e-albania.al"
+    ]
+  },
+  "DZA": {
+    "name": "Algeria",
+    "region": "Africa",
+    "sites": [
+      "https://www.el-mouradia.dz"
+    ]
+  },
+  "AND": {
+    "name": "Andorra",
+    "region": "Europe",
+    "sites": [
+      "https://www.govern.ad"
+    ]
+  },
+  "AGO": {
+    "name": "Angola",
+    "region": "Africa",
+    "sites": [
+      "https://www.governo.gov.ao",
+      "https://www.cidadao.gov.ao/"
+    ]
+  },
+  "ATG": {
+    "name": "Antigua and Barbuda",
+    "region": "Americas",
+    "sites": [
+      "https://www.ab.gov.ag"
+    ]
+  },
+  "ARG": {
+    "name": "Argentina",
+    "region": "Americas",
+    "sites": [
+      "https://www.argentina.gob.ar",
+      "https://www.datos.gob.ar/"
+    ]
+  },
+  "ARM": {
+    "name": "Armenia",
+    "region": "Asia",
+    "sites": [
+      "https://www.e-gov.am"
+    ]
+  },
+  "AUS": {
+    "name": "Australia",
+    "region": "Oceania",
+    "sites": [
+      "https://www.australia.gov.au",
+      "https://www.data.gov.au/"
+    ]
+  },
+  "AUT": {
+    "name": "Austria",
+    "region": "Europe",
+    "sites": [
+      "https://www.oesterreich.gv.at",
+      "https://www.data.gv.at/"
+    ]
+  },
+  "AZE": {
+    "name": "Azerbaijan",
+    "region": "Asia",
+    "sites": [
+      "https://www.e-gov.az",
+      "https://my.gov.az"
+    ]
+  },
+  "BHS": {
+    "name": "Bahamas",
+    "region": "Americas",
+    "sites": [
+      "https://www.bahamas.gov.bs"
+    ]
+  },
+  "BHR": {
+    "name": "Bahrain",
+    "region": "Asia",
+    "sites": [
+      "https://www.bahrain.bh",
+      "https://www.data.gov.bh/"
+    ]
+  },
+  "BGD": {
+    "name": "Bangladesh",
+    "region": "Asia",
+    "sites": [
+      "https://bangladesh.gov.bd"
+    ]
+  },
+  "BRB": {
+    "name": "Barbados",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.bb",
+      "https://gisbarbados.gov.bb/"
+    ]
+  },
+  "BLR": {
+    "name": "Belarus",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.by"
+    ]
+  },
+  "BEL": {
+    "name": "Belgium",
+    "region": "Europe",
+    "sites": [
+      "https://www.belgium.be",
+      "https://data.gov.be"
+    ]
+  },
+  "BLZ": {
+    "name": "Belize",
+    "region": "Americas",
+    "sites": [
+      "https://www.belize.gov.bz"
+    ]
+  },
+  "BEN": {
+    "name": "Benin",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouv.bj"
+    ]
+  },
+  "BTN": {
+    "name": "Bhutan",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.bt"
+    ]
+  },
+  "BOL": {
+    "name": "Bolivia",
+    "region": "Americas",
+    "sites": [
+      "https://www.bolivia.gob.bo"
+    ]
+  },
+  "BIH": {
+    "name": "Bosnia and Herzegovina",
+    "region": "Europe",
+    "sites": [
+      "https://www.vijeceministara.gov.ba"
+    ]
+  },
+  "BWA": {
+    "name": "Botswana",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.bw"
+    ]
+  },
+  "BRA": {
+    "name": "Brazil",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.br",
+      "https://dados.gov.br/",
+      "https://transparencia.gov.br/",
+      "https://www.participa.br/governoaberto"
+    ]
+  },
+  "BRN": {
+    "name": "Brunei Darussalam",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.bn"
+    ]
+  },
+  "BGR": {
+    "name": "Bulgaria",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.bg",
+      "https://opendata.government.bg/"
+    ]
+  },
+  "BFA": {
+    "name": "Burkina Faso",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouvernement.gov.bf",
+      "https://data.gov.bf/"
+    ]
+  },
+  "BDI": {
+    "name": "Burundi",
+    "region": "Africa",
+    "sites": [
+      "https://www.burundi.gov.bi"
+    ]
+  },
+  "CPV": {
+    "name": "Cabo Verde",
+    "region": "Africa",
+    "sites": [
+      "https://www.governo.cv",
+      "https://portondinosilhas.gov.cv"
+    ]
+  },
+  "KHM": {
+    "name": "Cambodia",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.kh"
+    ]
+  },
+  "CMR": {
+    "name": "Cameroon",
+    "region": "Africa",
+    "sites": [
+      "https://www.spm.gov.cm"
+    ]
+  },
+  "CAN": {
+    "name": "Canada",
+    "region": "Americas",
+    "sites": [
+      "https://www.canada.ca",
+      "https://open.canada.ca"
+    ]
+  },
+  "CAF": {
+    "name": "Central African Republic",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouv.cf"
+    ]
+  },
+  "TCD": {
+    "name": "Chad",
+    "region": "Africa",
+    "sites": [
+      "https://www.presidence.td"
+    ]
+  },
+  "CHL": {
+    "name": "Chile",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.cl",
+      "https://www.gobiernoabierto.gob.cl/",
+      "https://www.gobiernotransparentechile.cl/"
+    ]
+  },
+  "CHN": {
+    "name": "China",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.cn"
+    ]
+  },
+  "COL": {
+    "name": "Colombia",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.co",
+      "https://www.datos.gov.co/"
+    ]
+  },
+  "COM": {
+    "name": "Comoros",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouvernement.km"
+    ]
+  },
+  "COG": {
+    "name": "Congo",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouvernement.cg"
+    ]
+  },
+  "CRI": {
+    "name": "Costa Rica",
+    "region": "Americas",
+    "sites": [
+      "https://www.presidencia.go.cr",
+      "https://gobiernoabierto.go.cr/"
+    ]
+  },
+  "CIV": {
+    "name": "Côte d'Ivoire",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouv.ci"
+    ]
+  },
+  "HRV": {
+    "name": "Croatia",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.hr"
+    ]
+  },
+  "CUB": {
+    "name": "Cuba",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.cu"
+    ]
+  },
+  "CYP": {
+    "name": "Cyprus",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.cy",
+      "https://www.data.gov.cy/"
+    ]
+  },
+  "CZE": {
+    "name": "Czechia",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.cz",
+      "https://portal.gov.cz/en"
+    ]
+  },
+  "PRK": {
+    "name": "Democratic People's Republic of Korea",
+    "region": "Asia",
+    "sites": [
+      "https://www.korea-dpr.com"
+    ]
+  },
+  "COD": {
+    "name": "Democratic Republic of the Congo",
+    "region": "Africa",
+    "sites": [
+      "https://www.presidence.cd",
+      "https://www.presidentrdc.cd"
+    ]
+  },
+  "DNK": {
+    "name": "Denmark",
+    "region": "Europe",
+    "sites": [
+      "https://www.borger.dk"
+    ]
+  },
+  "DJI": {
+    "name": "Djibouti",
+    "region": "Africa",
+    "sites": [
+      "https://www.presidence.dj"
+    ]
+  },
+  "DMA": {
+    "name": "Dominica",
+    "region": "Americas",
+    "sites": [
+      "https://www.dominica.gov.dm",
+      "https://dominode.dm/"
+    ]
+  },
+  "DOM": {
+    "name": "Dominican Republic",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.do",
+      "https://datos.gob.do/"
+    ]
+  },
+  "ECU": {
+    "name": "Ecuador",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.ec"
+    ]
+  },
+  "EGY": {
+    "name": "Egypt",
+    "region": "Africa",
+    "sites": [
+      "https://www.egypt.gov.eg"
+    ]
+  },
+  "SLV": {
+    "name": "El Salvador",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.sv",
+      "https://www.gobiernoabierto.gob.sv/"
+    ]
+  },
+  "GNQ": {
+    "name": "Equatorial Guinea",
+    "region": "Africa",
+    "sites": [
+      "https://www.guineaecuatorialpress.com"
+    ]
+  },
+  "ERI": {
+    "name": "Eritrea",
+    "region": "Africa",
+    "sites": [
+      "https://www.shabait.com"
+    ]
+  },
+  "EST": {
+    "name": "Estonia",
+    "region": "Europe",
+    "sites": [
+      "https://www.eesti.ee",
+      "https://e-estonia.com/"
+    ]
+  },
+  "SWZ": {
+    "name": "Eswatini",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.sz"
+    ]
+  },
+  "ETH": {
+    "name": "Ethiopia",
+    "region": "Africa",
+    "sites": [
+      "https://www.ethiopia.gov.et",
+      "https://data.gov.et/"
+    ]
+  },
+  "FJI": {
+    "name": "Fiji",
+    "region": "Oceania",
+    "sites": [
+      "https://www.fiji.gov.fj"
+    ]
+  },
+  "FIN": {
+    "name": "Finland",
+    "region": "Europe",
+    "sites": [
+      "https://www.suomi.fi"
+    ]
+  },
+  "FRA": {
+    "name": "France",
+    "region": "Europe",
+    "sites": [
+      "https://www.service-public.fr",
+      "https://www.data.gouv.fr"
+    ]
+  },
+  "GAB": {
+    "name": "Gabon",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouvernement.ga"
+    ]
+  },
+  "GMB": {
+    "name": "Gambia",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.gm"
+    ]
+  },
+  "GEO": {
+    "name": "Georgia",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.ge"
+    ]
+  },
+  "DEU": {
+    "name": "Germany",
+    "region": "Europe",
+    "sites": [
+      "https://www.bundesregierung.de",
+      "https://www.govdata.de/"
+    ]
+  },
+  "GHA": {
+    "name": "Ghana",
+    "region": "Africa",
+    "sites": [
+      "https://www.ghana.gov.gh",
+      "https://www.eservices.gov.gh",
+      "https://data.gov.gh/"
+    ]
+  },
+  "GRC": {
+    "name": "Greece",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.gr",
+      "https://www.data.gov.gr/"
+    ]
+  },
+  "GRD": {
+    "name": "Grenada",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.gd"
+    ]
+  },
+  "GTM": {
+    "name": "Guatemala",
+    "region": "Americas",
+    "sites": [
+      "https://www.guatemala.gob.gt"
+    ]
+  },
+  "GIN": {
+    "name": "Guinea",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouvernement.gov.gn"
+    ]
+  },
+  "GNB": {
+    "name": "Guinea-Bissau",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.gw"
+    ]
+  },
+  "GUY": {
+    "name": "Guyana",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.gy"
+    ]
+  },
+  "HTI": {
+    "name": "Haiti",
+    "region": "Americas",
+    "sites": [
+      "https://www.primature.gouv.ht"
+    ]
+  },
+  "HND": {
+    "name": "Honduras",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.hn"
+    ]
+  },
+  "HUN": {
+    "name": "Hungary",
+    "region": "Europe",
+    "sites": [
+      "https://www.kormany.hu"
+    ]
+  },
+  "ISL": {
+    "name": "Iceland",
+    "region": "Europe",
+    "sites": [
+      "https://www.island.is"
+    ]
+  },
+  "IND": {
+    "name": "India",
+    "region": "Asia",
+    "sites": [
+      "https://www.india.gov.in",
+      "https://data.gov.in/"
+    ]
+  },
+  "IDN": {
+    "name": "Indonesia",
+    "region": "Asia",
+    "sites": [
+      "https://www.indonesia.go.id",
+      "https://data.go.id/"
+    ]
+  },
+  "IRN": {
+    "name": "Iran (Islamic Republic of)",
+    "region": "Asia",
+    "sites": [
+      "https://www.dolat.ir"
+    ]
+  },
+  "IRQ": {
+    "name": "Iraq",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.iq"
+    ]
+  },
+  "IRL": {
+    "name": "Ireland",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.ie"
+    ]
+  },
+  "ISR": {
+    "name": "Israel",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.il",
+      "https://e.gov.il"
+    ]
+  },
+  "ITA": {
+    "name": "Italy",
+    "region": "Europe",
+    "sites": [
+      "https://www.italia.gov.it",
+      "https://egov.formez.it/",
+      "https://www.magellanopa.it/bussola/",
+      "https://www.dati.gov.it/"
+    ]
+  },
+  "JAM": {
+    "name": "Jamaica",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.jm"
+    ]
+  },
+  "JPN": {
+    "name": "Japan",
+    "region": "Asia",
+    "sites": [
+      "https://www.e-gov.go.jp",
+      "https://www.e-gov.go.jp",
+      "https://www.data.go.jp"
+    ]
+  },
+  "JOR": {
+    "name": "Jordan",
+    "region": "Asia",
+    "sites": [
+      "https://www.jordan.gov.jo"
+    ]
+  },
+  "KAZ": {
+    "name": "Kazakhstan",
+    "region": "Asia",
+    "sites": [
+      "https://egov.kz",
+      "https://data.egov.kz/"
+    ]
+  },
+  "KEN": {
+    "name": "Kenya",
+    "region": "Africa",
+    "sites": [
+      "https://www.hudumakenya.go.ke",
+      "https://www.hudumakenya.go.ke",
+      "https://opendata.go.ke"
+    ]
+  },
+  "KIR": {
+    "name": "Kiribati",
+    "region": "Oceania",
+    "sites": [
+      "https://www.president.gov.ki"
+    ]
+  },
+  "KWT": {
+    "name": "Kuwait",
+    "region": "Asia",
+    "sites": [
+      "https://www.e.gov.kw"
+    ]
+  },
+  "KGZ": {
+    "name": "Kyrgyzstan",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.kg"
+    ]
+  },
+  "LAO": {
+    "name": "Lao People's Democratic Republic",
+    "region": "Asia",
+    "sites": [
+      "https://www.laogov.gov.la"
+    ]
+  },
+  "LVA": {
+    "name": "Latvia",
+    "region": "Europe",
+    "sites": [
+      "https://www.latvija.lv"
+    ]
+  },
+  "LBN": {
+    "name": "Lebanon",
+    "region": "Asia",
+    "sites": [
+      "https://www.dawlati.gov.lb"
+    ]
+  },
+  "LSO": {
+    "name": "Lesotho",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.ls"
+    ]
+  },
+  "LBR": {
+    "name": "Liberia",
+    "region": "Africa",
+    "sites": [
+      "https://www.emansion.gov.lr"
+    ]
+  },
+  "LBY": {
+    "name": "Libya",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.ly"
+    ]
+  },
+  "LIE": {
+    "name": "Liechtenstein",
+    "region": "Europe",
+    "sites": [
+      "https://www.llv.li"
+    ]
+  },
+  "LTU": {
+    "name": "Lithuania",
+    "region": "Europe",
+    "sites": [
+      "https://www.lrv.lt",
+      "https://pirkimai.eviesiejipirkimai.lt"
+    ]
+  },
+  "LUX": {
+    "name": "Luxembourg",
+    "region": "Europe",
+    "sites": [
+      "https://www.luxembourg.lu"
+    ]
+  },
+  "MDG": {
+    "name": "Madagascar",
+    "region": "Africa",
+    "sites": [
+      "https://www.presidence.gov.mg"
+    ]
+  },
+  "MWI": {
+    "name": "Malawi",
+    "region": "Africa",
+    "sites": [
+      "https://www.malawi.gov.mw"
+    ]
+  },
+  "MYS": {
+    "name": "Malaysia",
+    "region": "Asia",
+    "sites": [
+      "https://www.malaysia.gov.my",
+      "https://data.gov.my/"
+    ]
+  },
+  "MDV": {
+    "name": "Maldives",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.mv"
+    ]
+  },
+  "MLI": {
+    "name": "Mali",
+    "region": "Africa",
+    "sites": [
+      "https://www.primature.gov.ml"
+    ]
+  },
+  "MLT": {
+    "name": "Malta",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.mt"
+    ]
+  },
+  "MHL": {
+    "name": "Marshall Islands",
+    "region": "Oceania",
+    "sites": [
+      "https://www.rmigovernment.org"
+    ]
+  },
+  "MRT": {
+    "name": "Mauritania",
+    "region": "Africa",
+    "sites": [
+      "https://www.gouvernement.gov.mr"
+    ]
+  },
+  "MUS": {
+    "name": "Mauritius",
+    "region": "Africa",
+    "sites": [
+      "https://www.govmu.org"
+    ]
+  },
+  "MEX": {
+    "name": "Mexico",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.mx"
+    ]
+  },
+  "FSM": {
+    "name": "Micronesia (Federated States of)",
+    "region": "Oceania",
+    "sites": [
+      "https://www.gov.fm"
+    ]
+  },
+  "MCO": {
+    "name": "Monaco",
+    "region": "Europe",
+    "sites": [
+      "https://www.gouv.mc"
+    ]
+  },
+  "MNG": {
+    "name": "Mongolia",
+    "region": "Asia",
+    "sites": [
+      "https://www.zasag.mn"
+    ]
+  },
+  "MNE": {
+    "name": "Montenegro",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.me"
+    ]
+  },
+  "MAR": {
+    "name": "Morocco",
+    "region": "Africa",
+    "sites": [
+      "https://www.maroc.ma",
+      "https://fikra.egov.ma/",
+      "https://www.data.gov.ma"
+    ]
+  },
+  "MOZ": {
+    "name": "Mozambique",
+    "region": "Africa",
+    "sites": [
+      "https://www.portaldogoverno.gov.mz"
+    ]
+  },
+  "MMR": {
+    "name": "Myanmar",
+    "region": "Asia",
+    "sites": [
+      "https://www.myanmar.gov.mm"
+    ]
+  },
+  "NAM": {
+    "name": "Namibia",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.na"
+    ]
+  },
+  "NRU": {
+    "name": "Nauru",
+    "region": "Oceania",
+    "sites": [
+      "https://www.naurugov.nr"
+    ]
+  },
+  "NPL": {
+    "name": "Nepal",
+    "region": "Asia",
+    "sites": [
+      "https://www.nepal.gov.np"
+    ]
+  },
+  "NLD": {
+    "name": "Netherlands",
+    "region": "Europe",
+    "sites": [
+      "https://www.government.nl",
+      "https://data.overheid.nl/"
+    ]
+  },
+  "NZL": {
+    "name": "New Zealand",
+    "region": "Oceania",
+    "sites": [
+      "https://www.govt.nz",
+      "https://data.govt.nz/"
+    ]
+  },
+  "NIC": {
+    "name": "Nicaragua",
+    "region": "Americas",
+    "sites": [
+      "https://www.nicaragua.gob.ni"
+    ]
+  },
+  "NER": {
+    "name": "Niger",
+    "region": "Africa",
+    "sites": [
+      "https://www.presidence.ne"
+    ]
+  },
+  "NGA": {
+    "name": "Nigeria",
+    "region": "Africa",
+    "sites": [
+      "https://www.nigeria.gov.ng"
+    ]
+  },
+  "MKD": {
+    "name": "North Macedonia",
+    "region": "Europe",
+    "sites": [
+      "https://www.vlada.mk",
+      "https://www.otvorenipodatoci.gov.mk/"
+    ]
+  },
+  "NOR": {
+    "name": "Norway",
+    "region": "Europe",
+    "sites": [
+      "https://www.norge.no",
+      "https://data.norge.no/"
+    ]
+  },
+  "OMN": {
+    "name": "Oman",
+    "region": "Asia",
+    "sites": [
+      "https://www.oman.om",
+      "https://www.data.gov.om/"
+    ]
+  },
+  "PAK": {
+    "name": "Pakistan",
+    "region": "Asia",
+    "sites": [
+      "https://www.pakistan.gov.pk"
+    ]
+  },
+  "PLW": {
+    "name": "Palau",
+    "region": "Oceania",
+    "sites": [
+      "https://www.palaugov.pw"
+    ]
+  },
+  "PAN": {
+    "name": "Panama",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.pa"
+    ]
+  },
+  "PNG": {
+    "name": "Papua New Guinea",
+    "region": "Oceania",
+    "sites": [
+      "https://www.pm.gov.pg",
+      "https://www.parliament.gov.pg/"
+    ]
+  },
+  "PRY": {
+    "name": "Paraguay",
+    "region": "Americas",
+    "sites": [
+      "https://www.paraguay.gov.py"
+    ]
+  },
+  "PER": {
+    "name": "Peru",
+    "region": "Americas",
+    "sites": [
+      "https://www.gob.pe",
+      "https://www.serviciosalciudadano.gob.pe/"
+    ]
+  },
+  "PHL": {
+    "name": "Philippines",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.ph",
+      "https://data.gov.ph/"
+    ]
+  },
+  "POL": {
+    "name": "Poland",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.pl",
+      "https://danepubliczne.gov.pl"
+    ]
+  },
+  "PRT": {
+    "name": "Portugal",
+    "region": "Europe",
+    "sites": [
+      "https://www.portugal.gov.pt",
+      "https://www.dados.gov.pt/"
+    ]
+  },
+  "QAT": {
+    "name": "Qatar",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.qa"
+    ]
+  },
+  "KOR": {
+    "name": "Republic of Korea",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.kr",
+      "https://www.data.go.kr/"
+    ]
+  },
+  "MDA": {
+    "name": "Republic of Moldova",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.md",
+      "https://data.gov.md/"
+    ]
+  },
+  "ROU": {
+    "name": "Romania",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.ro",
+      "https://ogp.gov.ro/"
+    ]
+  },
+  "RUS": {
+    "name": "Russian Federation",
+    "region": "Europe",
+    "sites": [
+      "https://www.gosuslugi.ru"
+    ]
+  },
+  "RWA": {
+    "name": "Rwanda",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.rw"
+    ]
+  },
+  "KNA": {
+    "name": "Saint Kitts and Nevis",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.kn"
+    ]
+  },
+  "LCA": {
+    "name": "Saint Lucia",
+    "region": "Americas",
+    "sites": [
+      "https://www.govt.lc",
+      "https://data.govt.lc/"
+    ]
+  },
+  "VCT": {
+    "name": "Saint Vincent and the Grenadines",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.vc"
+    ]
+  },
+  "WSM": {
+    "name": "Samoa",
+    "region": "Oceania",
+    "sites": [
+      "https://www.samoagovt.ws"
+    ]
+  },
+  "SMR": {
+    "name": "San Marino",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.sm"
+    ]
+  },
+  "STP": {
+    "name": "Sao Tome and Principe",
+    "region": "Africa",
+    "sites": [
+      "https://www.governo.st"
+    ]
+  },
+  "SAU": {
+    "name": "Saudi Arabia",
+    "region": "Asia",
+    "sites": [
+      "https://www.my.gov.sa",
+      "https://my.gov.sa/"
+    ]
+  },
+  "SEN": {
+    "name": "Senegal",
+    "region": "Africa",
+    "sites": [
+      "https://www.servicepublic.gouv.sn"
+    ]
+  },
+  "SRB": {
+    "name": "Serbia",
+    "region": "Europe",
+    "sites": [
+      "https://www.srbija.gov.rs"
+    ]
+  },
+  "SYC": {
+    "name": "Seychelles",
+    "region": "Africa",
+    "sites": [
+      "https://www.egov.sc"
+    ]
+  },
+  "SLE": {
+    "name": "Sierra Leone",
+    "region": "Africa",
+    "sites": [
+      "https://www.statehouse.gov.sl",
+      "https://opendata.gov.sl/"
+    ]
+  },
+  "SGP": {
+    "name": "Singapore",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.sg",
+      "https://data.gov.sg"
+    ]
+  },
+  "SVK": {
+    "name": "Slovakia",
+    "region": "Europe",
+    "sites": [
+      "https://www.slovensko.sk",
+      "https://data.gov.sk/"
+    ]
+  },
+  "SVN": {
+    "name": "Slovenia",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.si"
+    ]
+  },
+  "SLB": {
+    "name": "Solomon Islands",
+    "region": "Oceania",
+    "sites": [
+      "https://www.solomons.gov.sb"
+    ]
+  },
+  "SOM": {
+    "name": "Somalia",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.so"
+    ]
+  },
+  "ZAF": {
+    "name": "South Africa",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.za",
+      "https://www.ogp.gov.za/"
+    ]
+  },
+  "SSD": {
+    "name": "South Sudan",
+    "region": "Africa",
+    "sites": [
+      "https://www.goss.org"
+    ]
+  },
+  "ESP": {
+    "name": "Spain",
+    "region": "Europe",
+    "sites": [
+      "https://www.administracion.gob.es",
+      "https://transparencia.gob.es/"
+    ]
+  },
+  "LKA": {
+    "name": "Sri Lanka",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.lk",
+      "https://www.data.gov.lk/"
+    ]
+  },
+  "PSE": {
+    "name": "State of Palestine",
+    "region": "Asia",
+    "sites": []
+  },
+  "SDN": {
+    "name": "Sudan",
+    "region": "Africa",
+    "sites": [
+      "https://www.sudan.gov.sd"
+    ]
+  },
+  "SUR": {
+    "name": "Suriname",
+    "region": "Americas",
+    "sites": [
+      "https://www.gov.sr"
+    ]
+  },
+  "SWE": {
+    "name": "Sweden",
+    "region": "Europe",
+    "sites": [
+      "https://www.sweden.se"
+    ]
+  },
+  "CHE": {
+    "name": "Switzerland",
+    "region": "Europe",
+    "sites": [
+      "https://www.admin.ch",
+      "https://opendata.swiss"
+    ]
+  },
+  "SYR": {
+    "name": "Syrian Arab Republic",
+    "region": "Asia",
+    "sites": [
+      "https://www.egov.sy"
+    ]
+  },
+  "TJK": {
+    "name": "Tajikistan",
+    "region": "Asia",
+    "sites": [
+      "https://www.president.tj"
+    ]
+  },
+  "THA": {
+    "name": "Thailand",
+    "region": "Asia",
+    "sites": [
+      "https://www.thaigov.go.th",
+      "https://data.go.th/"
+    ]
+  },
+  "TLS": {
+    "name": "Timor-Leste",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.tl",
+      "https://www.transparency.gov.tl/",
+      "https://eprocurement.gov.tl/"
+    ]
+  },
+  "TGO": {
+    "name": "Togo",
+    "region": "Africa",
+    "sites": [
+      "https://www.republicoftogo.com"
+    ]
+  },
+  "TON": {
+    "name": "Tonga",
+    "region": "Oceania",
+    "sites": [
+      "https://www.gov.to"
+    ]
+  },
+  "TTO": {
+    "name": "Trinidad and Tobago",
+    "region": "Americas",
+    "sites": [
+      "https://www.ttconnect.gov.tt"
+    ]
+  },
+  "TUN": {
+    "name": "Tunisia",
+    "region": "Africa",
+    "sites": [
+      "https://www.tunisie.gov.tn",
+      "https://www.data.gov.tn/"
+    ]
+  },
+  "TUR": {
+    "name": "Turkey",
+    "region": "Asia",
+    "sites": [
+      "https://www.turkiye.gov.tr"
+    ]
+  },
+  "TKM": {
+    "name": "Turkmenistan",
+    "region": "Asia",
+    "sites": [
+      "https://www.gov.tm"
+    ]
+  },
+  "TUV": {
+    "name": "Tuvalu",
+    "region": "Oceania",
+    "sites": [
+      "https://www.tuvalugovernment.tv"
+    ]
+  },
+  "UGA": {
+    "name": "Uganda",
+    "region": "Africa",
+    "sites": [
+      "https://www.gou.go.ug"
+    ]
+  },
+  "UKR": {
+    "name": "Ukraine",
+    "region": "Europe",
+    "sites": [
+      "https://www.kmu.gov.ua",
+      "https://data.gov.ua/"
+    ]
+  },
+  "ARE": {
+    "name": "United Arab Emirates",
+    "region": "Asia",
+    "sites": [
+      "https://u.ae",
+      "https://bayanat.ae"
+    ]
+  },
+  "GBR": {
+    "name": "United Kingdom of Great Britain and Northern Ireland",
+    "region": "Europe",
+    "sites": [
+      "https://www.gov.uk",
+      "https://data.gov.uk/"
+    ]
+  },
+  "TZA": {
+    "name": "United Republic of Tanzania",
+    "region": "Africa",
+    "sites": [
+      "https://www.tanzania.go.tz",
+      "https://www.opendata.go.tz/"
+    ]
+  },
+  "USA": {
+    "name": "United States of America",
+    "region": "Americas",
+    "sites": [
+      "https://www.usa.gov",
+      "https://www.data.gov/"
+    ]
+  },
+  "URY": {
+    "name": "Uruguay",
+    "region": "Americas",
+    "sites": [
+      "https://www.gub.uy",
+      "https://gobiernoabierto.gub.uy/",
+      "https://participacionciudadana.gub.uy/",
+      "https://www.uaip.gub.uy/"
+    ]
+  },
+  "UZB": {
+    "name": "Uzbekistan",
+    "region": "Asia",
+    "sites": [
+      "https://my.gov.uz",
+      "https://data.gov.uz/"
+    ]
+  },
+  "VUT": {
+    "name": "Vanuatu",
+    "region": "Oceania",
+    "sites": [
+      "https://www.gov.vu"
+    ]
+  },
+  "VEN": {
+    "name": "Venezuela, Bolivarian Republic of",
+    "region": "Americas",
+    "sites": [
+      "https://www.gobiernoenlinea.gob.ve"
+    ]
+  },
+  "VNM": {
+    "name": "Viet Nam",
+    "region": "Asia",
+    "sites": [
+      "https://www.chinhphu.vn"
+    ]
+  },
+  "YEM": {
+    "name": "Yemen",
+    "region": "Asia",
+    "sites": [
+      "https://www.yemen.gov.ye"
+    ]
+  },
+  "ZMB": {
+    "name": "Zambia",
+    "region": "Africa",
+    "sites": [
+      "https://www.gov.zm"
+    ]
+  },
+  "ZWE": {
+    "name": "Zimbabwe",
+    "region": "Africa",
+    "sites": [
+      "https://www.zim.gov.zw"
+    ]
+  }
+}

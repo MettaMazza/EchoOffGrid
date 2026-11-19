@@ -14,12 +14,22 @@ For the packaged preview, open **EchoOffGrid.pkg** on a Mac or install **EchoOff
 
 | Open | What you can do |
 | --- | --- |
-| **Library** | Browse videos, shows, audio, books, pictures, games and software. Open a category for its full grid, import personal files or browse publishers. Local videos have native playback controls and optional autoplay. |
+| **Library** | Browse videos, shows, audio, books, pictures, documents, games and software. Open a category for its full grid, import personal files or browse publishers. Local videos have native playback controls and optional autoplay. |
 | **News and Discover** | Read the illustrated field notes immediately. While connected, choose a regional news edition, refresh world news, and browse public catalogues. Saved articles and previously cached artwork stay on the device. |
 | **Reference and maps** | Browse Wikipedia, look up highlighted words, explore a map and listen with the packaged English narrator. Map detail depends on the tile archives installed. |
-| **Private Browser** | Browse HTTPS sites through Tor in a separate in-app view while online. Other apps use their existing connection. |
+| **History** | Zoom from eras to individual years, search the offline chronology and compare historical interpretations. [Sources and scope](vendor/history/NOTICE.md) |
+| **OpenGov** | Browse national portals for 197 jurisdictions, search connected catalogues and save publications to Documents. |
+| **Private Browser** | Open DuckDuckGo and browse HTTPS sites through Tor in a separate in-app view while online. Other apps use their existing connection. |
 | **EchoLite** | The Mac hosts the supplied EchoLite interface. Android opens the independently installed EchoLite app and Back returns to EchoOffGrid. EchoLite owns its models and settings. |
 | **Devices** | Pair a Mac and phone over USB and sync compatible content over USB or Wi-Fi. Import optional radio logs and compare local observations with public ScotMesh reports. |
+
+## Exploring government records
+
+Find official records in **OpenGov**, then choose **Save to Documents**. Choose among 197 jurisdictions to browse national portals and data catalogues. The default search combines World Bank Documents & Reports, GOV.UK statements and the US Federal Register. Use the country view to search official sites, browse linked publications or save a supported portal PDF or page. Previous results remain searchable on the device. The Library’s **Documents** shelf holds downloaded PDFs, readable statement text and your imported PDFs or text files. A scan of the 1941 Lend-Lease Act comes with the app. Live coverage depends on each publisher’s catalogue and availability.
+
+## Exploring history
+
+Browse from early stone tools to living memory on the offline **History** tab. Scroll the era rail, select an interval to zoom, enter a year in BCE or CE, or search across the local Wikipedia-derived chronology. **Guided history** explores selected turning points and competing interpretations. **Show all entries** opens the larger index. Open an entry’s Wikipedia article for context. [Sources and scope](vendor/history/NOTICE.md)
 
 ## Run the source preview on a Mac
 

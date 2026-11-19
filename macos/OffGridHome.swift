@@ -489,7 +489,7 @@ final class PrivateBrowserPanel:NSView, WKNavigationDelegate {
         let bar=NSStackView(views:[back,next,addressField,go,close])
         for child in [bar,progress,tab] as [NSView]{addSubview(child);child.translatesAutoresizingMaskIntoConstraints=false}
         NSLayoutConstraint.activate([bar.leadingAnchor.constraint(equalTo:leadingAnchor,constant:10),bar.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-10),bar.topAnchor.constraint(equalTo:topAnchor,constant:8),progress.topAnchor.constraint(equalTo:bar.bottomAnchor,constant:3),progress.leadingAnchor.constraint(equalTo:bar.leadingAnchor),tab.topAnchor.constraint(equalTo:progress.bottomAnchor,constant:4),tab.leadingAnchor.constraint(equalTo:leadingAnchor),tab.trailingAnchor.constraint(equalTo:trailingAnchor),tab.bottomAnchor.constraint(equalTo:bottomAnchor)])
-        addressField.stringValue="https://check.torproject.org/";openAddress()
+        addressField.stringValue="https://duckduckgo.com/";openAddress()
     }
     required init?(coder:NSCoder){fatalError()}
     @objc func done(){tab.stopLoading();removeFromSuperview()}
@@ -649,6 +649,13 @@ struct WorkspaceWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             let url = action.request.url
+            if let url, url.scheme=="https", action.navigationType == .linkActivated,
+               action.sourceFrame.isMainFrame, let current=webView.url, current.host==address.host,
+               current.port==address.port, ["/opengov","/opengov/portal"].contains(current.path) {
+                decisionHandler(.cancel)
+                NSWorkspace.shared.open(url)
+                return
+            }
             guard url?.scheme == "http", url?.host == address.host, url?.port == address.port else {
                 decisionHandler(.cancel)
                 return

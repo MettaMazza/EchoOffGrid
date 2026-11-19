@@ -225,8 +225,22 @@ def download(db,root,item):
                 for chunk in iter(lambda:cached.read(512*1024),b""):
                     digest.update(chunk)
             verified = digest.hexdigest() == checksum
-        if not verified:
-            transfer(target,url,size,checksum,sha256,progress)
+        if item["kind"]=="Documents" and ext==".txt":
+            import opengov
+            opengov.save_statement(item,target,progress)
+        elif not verified:
+            from govports import country_for, fetch
+            country=country_for(item) if item["kind"]=="Documents" else None
+            if country:
+                transfer(target,url,size,checksum,sha256,progress,opener=lambda req,timeout:fetch(country,req.full_url))
+            else:
+                transfer(target,url,size,checksum,sha256,progress)
+            if item["kind"]=="Documents" and ext==".pdf":
+                with target.open("rb") as stored:
+                    valid=stored.read(5)==b"%PDF-"
+                if not valid:
+                    target.unlink()
+                    raise ValueError("Publisher returned a page instead of the requested PDF")
         finished_bytes += size or 0
         with db:
             db.execute("INSERT OR REPLACE INTO discovery_file VALUES(?,?,?,?)",(item["id"],idx,name,filename))
@@ -240,11 +254,11 @@ def download(db,root,item):
                        (name,item["rights"].removesuffix(note)+note,item["id"]))
 
 
-def transfer(target,url,size,checksum,sha256,progress):
+def transfer(target,url,size,checksum,sha256,progress,opener=None):
     root=target.parent
     partial=target.with_suffix(target.suffix+".part")
     try:
-        with urlopen(Request(url,headers={"User-Agent":"EchoOffGrid/1.0"}),timeout=35) as response:
+        with (opener or urlopen)(Request(url,headers={"User-Agent":"EchoOffGrid/1.0"}),timeout=35) as response:
             expected=size or int(response.headers.get("Content-Length") or 0)
             if expected and expected+64*1024*1024>shutil.disk_usage(root).free: raise ValueError("Insufficient available storage")
             digest=hashlib.sha1()

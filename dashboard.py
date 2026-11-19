@@ -14,6 +14,8 @@ from email.utils import parsedate_to_datetime
 import http.client
 import private_browser
 import media_previews
+import history_view
+import opengov
 import personal_library
 import narrator
 from news import News
@@ -248,11 +250,11 @@ def pixel_mark():
 WORKSTATION_MARK = pixel_mark()
 
 def page(section, body, token=""):
-    links = [("/", "Home"), ("/library", "Library"), ("/news","News"), ("/wikipedia", "Wikipedia"),
+    links = [("/", "Home"), ("/library", "Library"), ("/news","News"), ("/opengov","OpenGov"), ("/history","History"), ("/wikipedia", "Wikipedia"),
              ("/dictionary", "Dictionary"), ("/maps", "Maps"), ("/downloads", "Downloads"),
              ("/private-browser","Private Browser"), ("/echolite", "EchoLite"), ("/devices", "Devices")]
     primary = {"Compare packets":"Devices","Receiver log":"Devices","ScotMesh reports":"Devices",
-               "Games":"Library","Discover":"Library","Software":"Library","Regional feeds":"Library"}
+               "Documents":"Library","Games":"Library","Discover":"Library","Software":"Library","Regional feeds":"Library"}
     navigation = "".join(
         f'<a href="{href}"{" aria-current=page" if title == primary.get(section,section) or (title == "Library" and section in ["Saved sources", *[item[0] for item in GROUPS.values()]]) else ""}>{title}</a>'
         for href, title in links
@@ -294,6 +296,7 @@ class Downloads:
             """)
             discovery.init(database)
             spotlight.seed(database)
+            opengov.seed(database,database_path.parent)
             database.execute("UPDATE discovery_item SET kind='Games' WHERE kind='Emulators'")
             personal_library.seed_pictures(database,database_path.parent)
             database.execute("CREATE INDEX IF NOT EXISTS fetch_source_time ON fetch(source, checked_at)")
@@ -500,6 +503,8 @@ class Dashboard(BaseHTTPRequestHandler):
                             carousel("Games", games, "shelf games", "data-on-load" if preview else ""))
         if not games:
             sections.append('<div class=section-head><h2>Games</h2><a href="/library/games">Browse games</a></div>'+self.catalogue_samples("games"))
+        document_cards=self.personal_cards(downloaded,{"Documents"})
+        sections.append('<div class=section-head><h2>Documents</h2><a href="/library/documents">Browse documents</a></div>'+carousel("Documents",document_cards,"shelf"))
         if preview:
             pictures=self.personal_cards(downloaded,{"Pictures"})
             if pictures:sections.append('<div class=section-head><h2>Pictures</h2><a href="/library/pictures">Browse pictures</a></div>'+carousel("Pictures",pictures,"shelf"))
@@ -617,15 +622,16 @@ class Dashboard(BaseHTTPRequestHandler):
             return
         catalogue = CATALOG_KINDS.get(kind)
         browse = "/discover?" + urlencode({"kind":catalogue}) if catalogue else ("/sources?category=Maps" if kind=="maps" else "/sources?category=Guidance")
+        if kind=="documents":browse="/opengov"
         body = f'<div class=section-head><input type=search id=shelf-search aria-label="Filter titles" placeholder="Filter this collection"><a href="{browse}">Browse more {name.lower()} →</a></div><small id=match-count role=status></small>'
         saved = []
         if catalogue:
             with closing(connect(self.server.database)) as db:
                 saved=db.execute("SELECT id,title FROM discovery_item WHERE kind=? AND filename IS NOT NULL ORDER BY title",(catalogue,)).fetchall()
-        if kind in {"pictures","guides","maps"}:
+        if kind in {"pictures","guides","maps","documents"}:
             with closing(connect(self.server.database)) as db:
                 rows=db.execute("SELECT id,kind,title FROM discovery_item WHERE kind=? AND filename IS NOT NULL ORDER BY title",(name,)).fetchall()
-            if kind=="pictures":
+            if kind in {"pictures","documents"}:
                 body=self.import_form(kind)+body+category_grid(name,self.personal_cards(rows,{name}),"shelf")
                 self.send_page(name,body);return
             saved=rows
@@ -1262,7 +1268,16 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                 self.send_response(200);self.send_header("Content-Type",mime);self.send_header("Content-Security-Policy",policy)
                 self.send_header("Content-Length",str(file.stat().st_size));self.end_headers();copyfileobj(stream,self.wfile)
             return
-        if target.path == "/news":
+        if target.path == "/opengov/portal":
+            try:
+                with closing(connect(self.server.database)) as db:
+                    body=opengov.govports.browse(db,params.get("country",[""])[0],params.get("url",[""])[0],self.server.token)
+                self.send_page("OpenGov",body)
+            except ValueError as error:self.send_error(400,str(error))
+        elif target.path == "/opengov":
+            with closing(connect(self.server.database)) as db:
+                self.send_page("OpenGov",opengov.screen(db,params,self.server.token))
+        elif target.path == "/news":
             self.send_page("News", self.server.news.render(self.server.token))
         elif target.path.startswith("/news/field-notes/"):
             article = self.server.news.field_notes(target.path.split("/")[-1])
@@ -1301,6 +1316,8 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
             self.puzzle_file(target.path[13:])
         elif target.path == "/dictionary":
             self.send_page("Dictionary", dictionary(self.server.echolite, params.get("q", [""])[0][:160], parse_qs(target.query, keep_blank_values=True).get("prefix", [None])[0], params.get("page", ["1"])[0],params.get("phrases",["0"])[0]=="1", path=getattr(self.server,"dictionary_path",None)))
+        elif target.path == "/history":
+            self.send_page("History",history_view.article(self.server.wiki,params["read"][0]) if "read" in params else history_view.page(params))
         elif target.path == "/wikipedia":
             self.send_page("Wikipedia", self.server.wiki.page(params.get("book", [""])[0], params.get("q", [""])[0][:300]))
         elif target.path.startswith("/zim/"):

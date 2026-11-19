@@ -274,3 +274,15 @@ Websites render in a separate browser view with a temporary browsing profile. Th
 The Mac and Android builders use the same pinned 530,482,005-byte Wikipedia archive. They cache and verify it in `dist/reference`. For an offline build, set `ECHO_STARTER_ZIM` to a local copy of `wikipedia_en-simple_all_mini_2026-09.zim`. The Mac runtime includes its own Kiwix reader. A connected larger library takes precedence.
 
 The source dashboard uses the bundled map, reading dictionary and starter shelves. The first-launch command downloads the ZIM before starting the server. The packaged apps also carry the narrator runtime and voice assets. EchoLite model downloads and pairing another device are optional setup steps. [Android companion](android.md) · [Networking roadmap](roadmap.md)
+
+## Government records
+
+Open **OpenGov** for a combined live search or choose a jurisdiction to browse its national portals. The country view supports direct publication URLs, linked pages and site-scoped web search. Links marked ↗ use the system browser. The directory is available offline. **World Bank Documents & Reports** includes loan agreements, project records and reports from multiple countries. **On this device** searches titles, descriptions and publishers for the featured records and records found in previous online searches. **GOV.UK statements** finds speeches, responses and announcements. **US Federal Register** searches notices and other published documents with official PDFs. Use **Next** for more results.
+
+Choose **Save to Documents** and follow progress in Downloads. Saved records appear under **Library → Documents** with their issuing source. PDFs retain the original file. UK statements are saved as readable text with the publisher URL. For a publisher that blocks automatic downloads, obtain the file through its official site and use **Library → Documents → Import documents**. The [FBI Vault Epstein collection](https://vault.fbi.gov/jeffrey-epstein) includes links to the individual released parts.
+
+Only saved files have an offline reader. An indexed title can still need a connection to acquire its file.
+
+## History
+
+Choose a tile on the era rail to open that period. Use **Earlier**, **Later**, **Zoom in** and **Zoom out** to navigate, or jump directly to a year such as **250 BCE**. Search covers all periods. Guided entries link to Wikipedia and some offer expandable comparisons of evidence and interpretations. The wider index follows the dated material in the bundled snapshot. The timeline itself works offline on both devices.

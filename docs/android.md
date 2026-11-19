@@ -33,3 +33,7 @@ Run `android/prepare-runtime.sh` followed by `android/build.sh`. The APK, local 
 Install the APK, build the separately signed test harness using `android/qa/build.sh` with the same local review key, install dist/android/qa/checks.apk and run `adb shell am instrument -w dev.echooffgrid.checks/.Checks`. These checks exercise an already populated kit, including local map data, search, media shelves, decoded previews and offline speech.
 
 To check the integration with an existing EchoLite installation, run `adb shell am instrument -w -e bridge 1 dev.echooffgrid.checks/.Checks`. The test opens EchoLite from the library and uses Android Back to return. The media-only check uses `-e media 1` and exercises category grids, hover previews, local playback and advancing to the next video.
+
+Open **More → OpenGov** to search official records. **Save to Documents** queues the file on the phone. Reopen it from **Library → Documents** after disconnecting. PDF and plain-text documents are compatible with both devices.
+
+EchoOffGrid has a mint pixel-E launcher icon. On supported launchers, the first launch offers to pin the app to the home screen. You can also drag EchoOffGrid from the app drawer to the home screen.

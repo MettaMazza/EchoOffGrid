@@ -262,3 +262,13 @@ document.querySelector('.workstation-back')?.addEventListener('click',()=>{
   if(history.length>1)history.back();else if(location.pathname!=='/')location.assign('/');
 });
 document.addEventListener('error',e=>{if(e.target instanceof HTMLImageElement && e.target.closest('.publisher-art'))e.target.closest('.publisher-art').classList.add('unavailable');},true);
+
+const historyRail=document.querySelector('.h-rail');
+if(historyRail)historyRail.addEventListener('wheel',event=>{
+  if(event.ctrlKey || event.deltaX || !event.deltaY)return;
+  const max=historyRail.scrollWidth-historyRail.clientWidth;
+  if((event.deltaY>0 && historyRail.scrollLeft<max-1)||(event.deltaY<0 && historyRail.scrollLeft>1)){
+    event.preventDefault();
+    historyRail.scrollLeft+=event.deltaY*(event.deltaMode===1?16:1);
+  }
+},{passive:false});

@@ -34,9 +34,9 @@ with ZipFile(out/'package/assets/runtime.zip','w',ZIP_DEFLATED) as z:
     for p in std.rglob('*'):
         if p.is_file() and not {'__pycache__','test','tests','idlelib','ensurepip','tkinter'}.intersection(p.relative_to(std).parts):
             z.write(p,Path('lib/python3.14')/p.relative_to(std))
-    for name in ('dashboard.py','private_browser.py','browser_proxy.py','media_previews.py','personal_library.py','puzzle-mobile.html','references.py','archive.py','news.py','publishers.py','library_sources.py','spotlight.py','discover-starters.json','world-population.json','discovery.py','evidence.py','narrator.py','kit_library.py','workspace.css','workspace.js','reader.js','atlas.html','puzzles.json','catalog.json','reading-words.txt'):
+    for name in ('dashboard.py','private_browser.py','browser_proxy.py','media_previews.py','history_view.py','govports.py','government-portals.json','opengov.py','lend-lease-1941.pdf','personal_library.py','puzzle-mobile.html','references.py','archive.py','news.py','publishers.py','library_sources.py','spotlight.py','discover-starters.json','world-population.json','discovery.py','evidence.py','narrator.py','kit_library.py','workspace.css','workspace.js','reader.js','atlas.html','puzzles.json','catalog.json','reading-words.txt'):
         z.write(name,site/name)
-    for root in ("vendor/starter-atlas", "vendor/starter-notices"):
+    for root in ("vendor/history","vendor/starter-atlas", "vendor/starter-notices"):
         for p in Path(root).rglob("*"):
             if p.is_file(): z.write(p,site/p)
     for p in (Path("vendor/starter-reference/reading-dictionary.db"),
@@ -63,7 +63,8 @@ with ZipFile(out/'package/assets/runtime.zip','w',ZIP_DEFLATED) as z:
             z.write(p,site/'model'/p.relative_to(model))
     z.write('/etc/ssl/cert.pem',site/'cacert.pem')
 PY
-"$build/aapt2" link -I "$jar" --manifest android/AndroidManifest.xml -o "$out/base.apk"
+"$build/aapt2" compile --dir android/res -o "$out/launcher-res.zip"
+"$build/aapt2" link -I "$jar" -R "$out/launcher-res.zip" --manifest android/AndroidManifest.xml -o "$out/base.apk"
 javac --release 8 -classpath "$jar:$out/vlc/classes.jar:$project/vendor/private-browser/android/webkit-1.9.0.jar" -d "$out/classes" android/*.java
 jar cf "$out/main.jar" -C "$out/classes" .
 "$build/d8" --min-api 28 --lib "$jar" --output "$out/dex" "$out/main.jar" "$out/vlc/classes.jar" "$project/vendor/private-browser/android/webkit-1.9.0.jar"

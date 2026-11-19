@@ -67,7 +67,7 @@ public final class PrivateBrowser extends Activity {
         ProxyConfig proxy=new ProxyConfig.Builder().addProxyRule("http://127.0.0.1:"+port).removeImplicitRules().build();
         ProxyController.getInstance().setProxyOverride(proxy,getMainExecutor(),()->{
             if(isFinishing()||isDestroyed())return;
-            ready=true;address.setText("https://check.torproject.org/");open();
+            ready=true;address.setText("https://duckduckgo.com/");open();
         });
     }
     private void open(){

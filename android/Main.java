@@ -85,6 +85,21 @@ public class Main extends Activity {
         if(!file.delete()) android.util.Log.w("EchoOffGrid","Could not remove obsolete runtime asset");
     }
 
+    private void offerHomeIcon() {
+        android.content.pm.ShortcutManager manager=getSystemService(android.content.pm.ShortcutManager.class);
+        if(manager==null || !manager.isRequestPinShortcutSupported())return;
+        if(getPreferences(MODE_PRIVATE).getBoolean("offeredHomeIcon",false))return;
+        for(android.content.pm.ShortcutInfo old:manager.getPinnedShortcuts())
+            if("workstation".equals(old.getId()))return;
+        Intent launch=new Intent(this,Main.class).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        android.content.pm.ShortcutInfo shortcut=new android.content.pm.ShortcutInfo.Builder(this,"workstation")
+                .setShortLabel("EchoOffGrid").setIntent(launch)
+                .setIcon(android.graphics.drawable.Icon.createWithResource(this,getApplicationInfo().icon)).build();
+        if(manager.requestPinShortcut(shortcut,null))
+            getPreferences(MODE_PRIVATE).edit().putBoolean("offeredHomeIcon",true).apply();
+    }
+
     public void onCreate(Bundle state) {
         super.onCreate(state);
         TextView status = new TextView(this);
@@ -171,6 +186,15 @@ public class Main extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 boolean local = "http".equals(uri.getScheme()) && "127.0.0.1".equals(uri.getHost()) && uri.getPort() == active;
+                if(request.isForMainFrame() && request.hasGesture() && "https".equals(uri.getScheme()) && view.getUrl()!=null){
+                    Uri page=Uri.parse(view.getUrl());
+                    if("127.0.0.1".equals(page.getHost()) && page.getPort()==active &&
+                       ("/opengov".equals(page.getPath()) || "/opengov/portal".equals(page.getPath()))){
+                        try{startActivity(new Intent(Intent.ACTION_VIEW,uri));}
+                        catch(android.content.ActivityNotFoundException e){Toast.makeText(Main.this,"No web browser installed",Toast.LENGTH_SHORT).show();}
+                        return true;
+                    }
+                }
                 if(local && request.isForMainFrame() && "/private-open".equals(uri.getPath())){
                     Uri page=Uri.parse(view.getUrl());
                     if(request.hasGesture() && "/private-browser".equals(page.getPath())){
@@ -224,6 +248,7 @@ public class Main extends Activity {
         frame.addView(browser);
         setContentView(frame);
         frame.requestApplyInsets();
+        frame.post(this::offerHomeIcon);
         String path = state == null ? "/" : state.getString("path","/");
         browser.loadUrl(origin + (path.startsWith("/") ? path : "/"));
     }

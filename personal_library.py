@@ -18,8 +18,9 @@ from zipfile import BadZipFile, ZipFile
 
 from archive import connect
 
-SHELVES={"watch":"Films","shows":"Shows","books":"Books","listen":"Audiobooks","games":"Games","software":"Software","pictures":"Pictures","guides":"Guides","maps":"Printable maps"}
+SHELVES={"documents":"Documents","watch":"Films","shows":"Shows","books":"Books","listen":"Audiobooks","games":"Games","software":"Software","pictures":"Pictures","guides":"Guides","maps":"Printable maps"}
 FORMATS={
+    "Documents":".pdf .txt",
     "Books":".txt .pdf .epub .cbz .cbr .mobi .md",
     "Films":".mp4 .m4v .mov .mkv .webm .ogv .avi","Shows":".mp4 .m4v .mov .mkv .webm .ogv .avi",
     "Audiobooks":".mp3 .m4a .ogg .oga .opus .flac .wav .aac","Pictures":".png .jpg .jpeg .gif .webp",

@@ -1,0 +1,11 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Lights Out</title>
+<style>body{background:#14181c;color:#e2eee5;font:1rem/1.5 system-ui;max-width:26rem;margin:1rem auto;padding:0 .6rem}main{display:grid;grid-template-columns:repeat(5,1fr);gap:.3rem}button{cursor:pointer;color:#cde8d3;background:#26372d;border:1px solid #63856f;border-radius:.2rem;min-height:2.5rem}main button{aspect-ratio:1}button[aria-pressed=true]{background:#a9d9b7}p{margin:.8rem 0}</style>
+<p>Switch off every light. Tapping a square also toggles its neighbours.</p><main aria-label="Light board"></main><p><button id=new>New puzzle</button> <output></output></p>
+<script>
+const grid=document.querySelector('main'),status=document.querySelector('output'),lights=new Array(25).fill(false);
+function flip(n){for(const j of [n,n-5,n+5,n%5?n-1:-1,n%5<4?n+1:-1])if(j>=0&&j<25)lights[j]=!lights[j];}
+function show(){lights.forEach((v,i)=>grid.children[i].setAttribute('aria-pressed',v));status.textContent=lights.some(Boolean)?'':'Solved';}
+for(let i=0;i<25;i++){const b=document.createElement('button');b.setAttribute('aria-label','Row '+(1+Math.floor(i/5))+', column '+(1+i%5));b.onclick=()=>{flip(i);show()};grid.append(b);}
+function reset(){lights.fill(false);for(let i=0;i<12;i++)flip(Math.floor(Math.random()*25));if(!lights.some(Boolean))flip(12);show();}
+document.querySelector('#new').onclick=reset;reset();
+</script>

@@ -1,0 +1,51 @@
+name: Verify EchoOffGrid
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Package and extract source
+        run: |
+          ./package-source.sh "$RUNNER_TEMP/EchoOffGrid-source.zip"
+          unzip -q "$RUNNER_TEMP/EchoOffGrid-source.zip" -d "$RUNNER_TEMP/source"
+      - name: Test the extracted release
+        run: |
+          cd "$RUNNER_TEMP/source/EchoOffGrid"
+          python3 -B -m unittest -v
+          python3 -B -m unittest discover -s android/qa -v
+      - name: Build and verify the app
+        run: |
+          cd "$RUNNER_TEMP/source/EchoOffGrid"
+          ./build-offgrid-home.sh "$RUNNER_TEMP/kit"
+          codesign --verify --strict "$RUNNER_TEMP/kit/OffGrid Home.app"
+      - name: Build and verify the standalone launcher
+        run: |
+          cd "$RUNNER_TEMP/source/EchoOffGrid"
+          ./build-offgrid-home.sh --standalone "$RUNNER_TEMP/standalone"
+          codesign --verify --strict "$RUNNER_TEMP/standalone/EchoOffGrid.app"
+          nm -gU "$RUNNER_TEMP/standalone/EchoOffGrid.app/Contents/MacOS/EchoInterface.dylib" | grep -F " _echolite_entry"
+      - name: Build and check the EchoLite companion
+        run: |
+          cd "$RUNNER_TEMP/source/EchoOffGrid"
+          ./setup-ernos.sh "$RUNNER_TEMP/ernos"
+          ERNOS_COMPILER="$RUNNER_TEMP/ernos/ernos" ERNOS_STDLIB="$RUNNER_TEMP/ernos/stdlib" \
+            ./setup-echolite.sh "$RUNNER_TEMP/echolite" --build-only
+          export ECHOLITE_HOME="$RUNNER_TEMP/echolite-state"
+          export ECHOLITE_NATIVE_TOKEN_FILE="$RUNNER_TEMP/echolite-token"
+          "$RUNNER_TEMP/echolite/echolite" init
+          "$RUNNER_TEMP/echolite/echolite" doctor

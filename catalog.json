@@ -1,0 +1,502 @@
+{
+  "regions": {
+    "WORLD": "Global",
+    "GB": "United Kingdom",
+    "GB-ENG": "England",
+    "GB-SCT": "Scotland",
+    "US": "United States",
+    "NZ": "New Zealand",
+    "GB-WLS": "Wales",
+    "GB-NIR": "Northern Ireland",
+    "CA": "Canada",
+    "AU": "Australia",
+    "JP": "Japan",
+    "IE": "Ireland"
+  },
+  "sources": [
+    {
+      "id": "usgs-earthquakes",
+      "title": "USGS earthquakes, past day",
+      "regions": [
+        "WORLD",
+        "US"
+      ],
+      "kind": "Hazards",
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson",
+      "format": "json",
+      "rights": "USGS data. Review attribution and reuse guidance before redistribution."
+    },
+    {
+      "id": "ea-floods",
+      "title": "Environment Agency flood alerts",
+      "regions": [
+        "GB",
+        "GB-ENG"
+      ],
+      "kind": "Hazards",
+      "url": "https://environment.data.gov.uk/flood-monitoring/id/floods",
+      "format": "json",
+      "rights": "Open Government Licence. This uses Environment Agency flood and river level data from the real-time data API (Beta)."
+    },
+    {
+      "id": "scotmesh",
+      "title": "ScotMesh public network snapshot",
+      "regions": [
+        "GB",
+        "GB-SCT"
+      ],
+      "kind": "Communications",
+      "url": "https://scotmesh-map.mm7roq.compute.oarc.uk/snapshot",
+      "format": "json",
+      "rights": "Public source. Redistribution rights are unverified."
+    },
+    {
+      "id": "gutenberg-pride",
+      "title": "Pride and Prejudice",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/1342/pg1342.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/1342"
+    },
+    {
+      "id": "gutenberg-frankenstein",
+      "title": "Frankenstein",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/84/pg84.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/84"
+    },
+    {
+      "id": "gutenberg-alice",
+      "title": "Alice’s Adventures in Wonderland",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/11/pg11.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/11"
+    },
+    {
+      "id": "gutenberg-treasure",
+      "title": "Treasure Island",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/120/pg120.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/120"
+    },
+    {
+      "id": "gutenberg-jane-eyre",
+      "title": "Jane Eyre",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/1260/pg1260.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/1260"
+    },
+    {
+      "id": "gutenberg-sherlock",
+      "title": "The Adventures of Sherlock Holmes",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/1661/pg1661.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/1661"
+    },
+    {
+      "id": "gutenberg-shelter",
+      "title": "Shelters, Shacks and Shanties",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/28255/pg28255.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/28255"
+    },
+    {
+      "id": "gutenberg-around-world",
+      "title": "Around the World in Eighty Days",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/103/pg103.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/103"
+    },
+    {
+      "id": "nasa-eonet",
+      "title": "NASA natural events",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Hazards",
+      "url": "https://eonet.gsfc.nasa.gov/api/v3/events?status=open",
+      "format": "json",
+      "rights": "NASA EONET with third-party source references. Retain attribution.",
+      "documentation": "https://eonet.gsfc.nasa.gov/docs/v3"
+    },
+    {
+      "id": "gdacs-events",
+      "title": "GDACS global disaster alerts",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Hazards",
+      "url": "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH",
+      "format": "json",
+      "rights": "Public feed. Review GDACS reuse terms before redistribution.",
+      "documentation": "https://data.gdacs.org/Documents/2025/GDACS_API_quickstart_v1.pdf"
+    },
+    {
+      "id": "nws-alerts",
+      "title": "US National Weather Service alerts",
+      "regions": [
+        "US"
+      ],
+      "kind": "Weather",
+      "url": "https://api.weather.gov/alerts/active?status=actual",
+      "format": "json",
+      "rights": "US National Weather Service. Review terms for material from outside sources.",
+      "documentation": "https://www.weather.gov/documentation/services-web-api"
+    },
+    {
+      "id": "noaa-kp",
+      "title": "NOAA planetary geomagnetic index",
+      "regions": [
+        "WORLD",
+        "US"
+      ],
+      "kind": "Space weather",
+      "url": "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json",
+      "format": "json",
+      "rights": "NOAA Space Weather Prediction Center. Retain attribution.",
+      "documentation": "https://www.swpc.noaa.gov/products/planetary-k-index"
+    },
+    {
+      "id": "geonet-quakes",
+      "title": "GeoNet New Zealand earthquakes",
+      "regions": [
+        "NZ"
+      ],
+      "kind": "Hazards",
+      "url": "https://api.geonet.org.nz/quake?MMI=3",
+      "format": "json",
+      "rights": "GeoNet data. Retain attribution and check the API terms before redistribution.",
+      "documentation": "https://api.geonet.org.nz/"
+    },
+    {
+      "id": "uk-emergency-guide",
+      "title": "Preparing for emergencies",
+      "regions": [
+        "GB",
+        "GB-ENG",
+        "GB-SCT",
+        "GB-WLS",
+        "GB-NIR"
+      ],
+      "kind": "Guidance",
+      "url": "https://www.gov.uk/api/content/government/publications/preparing-for-emergencies",
+      "format": "json",
+      "rights": "GOV.UK content under the Open Government Licence except where stated.",
+      "documentation": "https://www.gov.uk/government/publications/preparing-for-emergencies"
+    },
+    {
+      "id": "eccc-alerts",
+      "title": "Canadian weather alerts (first 100 records)",
+      "regions": [
+        "CA"
+      ],
+      "kind": "Weather",
+      "url": "https://api.weather.gc.ca/collections/weather-alerts/items?f=json&limit=100",
+      "format": "json",
+      "rights": "Data Source: Environment and Climate Change Canada. ECCC Data Servers End-use Licence.",
+      "documentation": "https://eccc-msc.github.io/open-data/msc-data/alerts/readme_alerts-geomet_en/"
+    },
+    {
+      "id": "melbourne-quakes",
+      "title": "University of Melbourne seismic feed, past 24 hours",
+      "regions": [
+        "AU"
+      ],
+      "kind": "Hazards",
+      "url": "https://seismic-api.science.unimelb.edu.au/today-quakes",
+      "format": "json",
+      "rights": "University of Melbourne public feed. Check reuse terms before redistribution.",
+      "documentation": "https://seismic-api.science.unimelb.edu.au/"
+    },
+    {
+      "id": "jma-quakes",
+      "title": "Japan Meteorological Agency earthquake reports",
+      "regions": [
+        "JP"
+      ],
+      "kind": "Hazards",
+      "url": "https://www.jma.go.jp/bosai/quake/data/list.json",
+      "format": "json",
+      "rights": "Japan Meteorological Agency. Check reuse terms before redistribution.",
+      "documentation": "https://www.jma.go.jp/bosai/quake/"
+    },
+    {
+      "id": "ireland-flood-catalog",
+      "title": "Irish open data catalog, flood search (first 40 matches)",
+      "regions": [
+        "IE"
+      ],
+      "kind": "Data catalogs",
+      "url": "https://data.gov.ie/api/3/action/package_search?q=flood&rows=40",
+      "format": "json",
+      "rights": "Ireland Open Data Portal. Individual datasets list their own terms.",
+      "documentation": "https://data.gov.ie/"
+    },
+    {
+      "id": "worldbank-population",
+      "title": "World Bank population, latest available year",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Statistics",
+      "url": "https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?format=json&mrv=1&per_page=400",
+      "format": "json",
+      "rights": "World Bank World Development Indicators. Check indicator attribution and reuse terms.",
+      "documentation": "https://data.worldbank.org/indicator/SP.POP.TOTL"
+    },
+    {
+      "id": "ntwc-atom",
+      "title": "NOAA National Tsunami Warning Center bulletins",
+      "regions": [
+        "US",
+        "CA"
+      ],
+      "kind": "Hazards",
+      "url": "https://www.tsunami.gov/events/xml/PAAQAtom.xml",
+      "format": "feed",
+      "rights": "NOAA / National Weather Service. Keep attribution and check reuse terms.",
+      "documentation": "https://www.tsunami.gov/"
+    },
+    {
+      "id": "ptwc-atom",
+      "title": "Pacific Tsunami Warning Center bulletins",
+      "regions": [
+        "WORLD",
+        "US",
+        "NZ",
+        "AU",
+        "JP"
+      ],
+      "kind": "Hazards",
+      "url": "https://www.tsunami.gov/events/xml/PHEBAtom.xml",
+      "format": "feed",
+      "rights": "NOAA / National Weather Service. Keep attribution and check reuse terms.",
+      "documentation": "https://www.tsunami.gov/"
+    },
+    {
+      "id": "public-safety-ca",
+      "title": "Public Safety Canada news releases",
+      "regions": [
+        "CA"
+      ],
+      "kind": "Public updates",
+      "url": "https://api.io.canada.ca/io-server/gc/news/en/v2?atomtitle=Public+Safety+Canada&dept=publicsafetycanada&format=atom&orderBy=desc&pick=50&publishedDate%3E=2021-07-23&sort=publishedDate",
+      "format": "feed",
+      "rights": "Government of Canada feed. Review Crown copyright and reuse terms.",
+      "documentation": "https://www.canada.ca/en/news/subscribe-emails.html"
+    },
+    {
+      "id": "gutenberg-woodcraft",
+      "title": "Woodcraft and Camping",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/34607/pg34607.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/34607"
+    },
+    {
+      "id": "gutenberg-camp-cookery",
+      "title": "Camp Cookery. How to Live in Camp",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/54138/pg54138.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/54138"
+    },
+    {
+      "id": "gutenberg-camp-lore",
+      "title": "The Book of Camp-Lore and Woodcraft",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/44215/pg44215.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/44215"
+    },
+    {
+      "id": "gutenberg-mechanics",
+      "title": "Practical Mechanics for Boys",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/22298/pg22298.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/22298"
+    },
+    {
+      "id": "gutenberg-tom-sawyer",
+      "title": "The Adventures of Tom Sawyer",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/74/pg74.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/74"
+    },
+    {
+      "id": "gutenberg-time-machine",
+      "title": "The Time Machine",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/35/pg35.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/35"
+    },
+    {
+      "id": "gutenberg-jekyll-hyde",
+      "title": "Strange Case of Dr Jekyll and Mr Hyde",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/43/pg43.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/43"
+    },
+    {
+      "id": "gutenberg-moby-dick",
+      "title": "Moby Dick; Or, The Whale",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/2701/pg2701.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/2701"
+    },
+    {
+      "id": "gutenberg-two-cities",
+      "title": "A Tale of Two Cities",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/98/pg98.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/98"
+    },
+    {
+      "id": "gutenberg-little-women",
+      "title": "Little Women",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/514/pg514.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/514"
+    },
+    {
+      "id": "gutenberg-dracula",
+      "title": "Dracula",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/345/pg345.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/345"
+    },
+    {
+      "id": "gutenberg-dorian-gray",
+      "title": "The Picture of Dorian Gray",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Books",
+      "url": "https://gutenberg.pglaf.org/cache/epub/174/pg174.txt",
+      "format": "text",
+      "rights": "Project Gutenberg mirror edition. Public domain in the US. Check local law for redistribution.",
+      "documentation": "https://www.gutenberg.org/ebooks/174"
+    },
+    {
+      "id": "be-ready-plan",
+      "title": "UK Be Ready household emergency plan",
+      "regions": [
+        "GB",
+        "GB-ENG",
+        "GB-SCT",
+        "GB-WLS",
+        "GB-NIR"
+      ],
+      "kind": "Guidance",
+      "format": "pdf",
+      "url": "https://beready.campaign.gov.uk/wp-content/uploads/sites/252/2026/10/Be-Ready_Household_Emergency_Plan_English_Final.pdf",
+      "rights": "Crown copyright. Open Government Licence v3.0 except where stated.",
+      "description": "Printable household plan for contacts, meeting points, utilities, emergency supplies and radio stations.",
+      "documentation": "https://beready.campaign.gov.uk/be-ready-for-emergencies/"
+    },
+    {
+      "id": "natural-earth-countries",
+      "title": "Natural Earth countries, 1:10 million",
+      "regions": [
+        "WORLD"
+      ],
+      "kind": "Maps",
+      "format": "zip",
+      "url": "https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_admin_0_countries.zip",
+      "rights": "Natural Earth public-domain map data.",
+      "description": "World country boundaries in GIS shapefile format.",
+      "documentation": "https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-countries/"
+    }
+  ]
+}

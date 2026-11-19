@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OffGrid Atlas</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; worker-src blob:;">
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<style>
+body { margin: 0; font: 15px system-ui; background: #101c18; color: #def2e7; }
+header { display: flex; gap: .65rem; align-items: center; flex-wrap: wrap; padding: .7rem 1rem; }
+button { font: inherit; padding: .35rem .65rem; background: #1d3229; color: inherit; border: 1px solid #6c8278; border-radius: .3rem; cursor: pointer; }
+button[aria-pressed=true] { background: #184e40; color: white; }
+#map { position: absolute; width: 100%; bottom: 0; }
+#status { margin-left: auto; }
+</style>
+<header id="controls">
+  <a style="color:#91f4c7" target="_top" href="/library">← Library</a><strong>Atlas</strong>
+  <button type="button" data-map="World">World</button>
+  <button type="button" data-map="UK">United Kingdom</button>
+  <button type="button" id="aberdeen" aria-pressed="false">Aberdeen</button>
+  <span id="status" role="status"></span>
+</header>
+<main id="map" aria-label="Offline map"></main>
+<script src="vendor/maplibre-gl.js"></script>
+<script src="vendor/pmtiles.js"></script>
+<script src="vendor/basemaps.js"></script>
+<script>
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", protocol.tile);
+const status = document.querySelector("#status");
+const buttons = [...document.querySelectorAll("#controls button")];
+const map = new maplibregl.Map({container: "map", attributionControl: true, maxZoom: 20});
+map.addControl(new maplibregl.NavigationControl());
+map.addControl(new maplibregl.ScaleControl({unit: "metric"}));
+const size = () => {
+  document.querySelector("#map").style.top = `${document.querySelector("#controls").offsetHeight}px`;
+  map.resize();
+};
+window.addEventListener("resize", size);
+size();
+let selection = 0;
+async function load(region, center, zoom, activeButton, fallback) {
+  const request = ++selection;
+  const url = new URL(`${region}.pmtiles`, location.href).href;
+  try {
+    const archive = new pmtiles.PMTiles(url);
+    const header = await archive.getHeader();
+    if (request !== selection) return;
+    protocol.add(archive);
+    map.setMaxZoom(header.maxZoom + 2);
+    map.setStyle({
+      version: 8,
+      glyphs: `${new URL("vendor/",location.href).href}fonts/{fontstack}/{range}.pbf`,
+      sprite: `${new URL("vendor/",location.href).href}sprites/v4/light`,
+      sources: {protomaps: {type: "vector", url: `pmtiles://${url}`,
+        attribution: "© OpenStreetMap contributors · Protomaps"}},
+      layers: basemaps.layers("protomaps", basemaps.namedFlavor("light"), {lang: "en"})
+    });
+    map.jumpTo({center, zoom});
+    buttons.forEach(button => button.setAttribute("aria-pressed", String(button === activeButton)));
+    status.textContent = `${fallback ? "Overview · " : "Offline · "}native zoom ${header.maxZoom}`;
+  } catch (error) {
+    if (request === selection) status.textContent = `${region} map is not available.`;
+    console.error(error);
+  }
+}
+const available = async filename => (await fetch(`${filename}.pmtiles`, {method: "HEAD"})).ok;
+buttons[0].onclick = () => load("World", [0, 18], 1, buttons[0]);
+buttons[1].onclick = async () => {
+  const detailed = await available("UK");
+  await load(detailed ? "UK" : "World", [-3.2, 55], 5, buttons[1], !detailed);
+};
+buttons[2].onclick = async () => {
+  const region = await available("Aberdeen") ? "Aberdeen" : await available("UK") ? "UK" : "World";
+  await load(region, [-2.103, 57.15], region === "World" ? 4 : 13, buttons[2], region === "World");
+};
+buttons[0].click();
+</script>
+</html>

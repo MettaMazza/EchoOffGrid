@@ -1,0 +1,7 @@
+Using your offline library
+
+Open a category in Library to find saved files. Import your files inside that category. Photos use the image itself, and applications and books use embedded artwork when available.
+
+Discover on Home shows available titles and saved news. Open a title to see the publisher and licence before downloading. Downloads shows active transfers.
+
+Paired devices exchange compatible files over USB or Wi-Fi. Native applications need the matching operating system.

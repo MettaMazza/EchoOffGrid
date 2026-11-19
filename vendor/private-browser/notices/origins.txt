@@ -1,0 +1,10 @@
+macOS arm64 and country databases: Tor Project Tor Expert Bundle 16.0.1, Tor 0.4.9.16.
+https://dist.torproject.org/torbrowser/16.0.1/tor-expert-bundle-macos-aarch64-16.0.1.tar.gz
+Archive SHA-256: 0b7d022017c31e3f972d06465bcd7ac50feb66ac825547419a934914fe4bb156
+The embedded Mac executable is signed ad hoc for this local build.
+Android arm64: Guardian Project tor-android 0.4.9.17 from Maven Central.
+https://repo.maven.apache.org/maven2/info/guardianproject/tor-android/0.4.9.17/
+AAR SHA-256: 9ffd3a8dab490733e1b29c7966922a9078989cd4ee386201a57d6c39d1403ddc
+Sources: https://github.com/guardianproject/tor-android and https://gitlab.torproject.org/tpo/core/tor
+AndroidX WebKit 1.9.0 provides the Android WebView proxy integration. The classes.jar is from the Android Open Source Project distribution on Google Maven, licensed under Apache License 2.0.
+https://dl.google.com/dl/android/maven2/androidx/webkit/webkit/1.9.0/webkit-1.9.0.aar

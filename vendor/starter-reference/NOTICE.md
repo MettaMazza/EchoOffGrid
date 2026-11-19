@@ -1,0 +1,7 @@
+# Offline reference credits
+
+The packaged Simple English Wikipedia mini archive contains introductions to articles by Simple English Wikipedia contributors. Kiwix assembled the September 2026 edition. Article text carries Wikimedia's reuse terms. Follow the article's history for individual contributors. [Wikipedia](https://simple.wikipedia.org/) · [Wikimedia terms](https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use) · [Kiwix archive](https://download.kiwix.org/zim/wikipedia/wikipedia_en-simple_all_mini_2026-09.zim)
+
+The starter reading dictionary contains a selection of English headwords from the October 2026 Wiktextract dump. EchoOffGrid selected reading vocabulary and condensed sense data. Wiktionary contributors retain attribution under CC BY-SA 4.0, with exceptions identified on individual entries. This adapted collection is distributed under the same licence. [Wiktionary copyright and attribution](https://en.wiktionary.org/wiki/Wiktionary:Copyrights) · [Wiktextract data](https://kaikki.org/dictionary/) · [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+
+The Mac reader is the arm64 kiwix-serve executable from Kiwix Tools 3.8.2. Its GPL licence accompanies this notice in COPYING. [Upstream release](https://download.kiwix.org/release/kiwix-tools/kiwix-tools_macos-arm64-3.8.2.tar.gz) · [Corresponding source](https://github.com/kiwix/kiwix-tools/tree/3.8.2)

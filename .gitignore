@@ -1,0 +1,16 @@
+__pycache__/
+*.sqlite3*
+.DS_Store
+
+/dist/
+
+# Local pairing credentials, signing keys and build products
+pairing.json
+pair.json
+phone-profile.json
+*.jks
+*.keystore
+*.apk
+*.pkg
+*.zim
+*.pem

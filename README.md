@@ -4,16 +4,16 @@
 
 **A library you can disconnect.** Open Wikipedia, find a word, read a saved article or pick a video from the shelf. EchoOffGrid keeps the files on your device and can sync a Mac and an Android phone when they meet again.
 
-## Download public preview 2
+## Download public preview 3
 
 | Device | Installer |
 | --- | --- |
-| Apple Silicon Mac · macOS 15 or later | [Download for Mac (.pkg)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-2/EchoOffGrid.pkg) |
-| arm64 Android · Android 9 or later | [Download for Android (.apk)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-2/EchoOffGrid-arm64.apk) |
+| Apple Silicon Mac · macOS 15 or later | [Download for Mac (.pkg)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-3/EchoOffGrid.pkg) |
+| arm64 Android · Android 9 or later | [Download for Android (.apk)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-3/EchoOffGrid-arm64.apk) |
 
-On Android, the upper-left menu opens every section. Tap the floating mint icon to launch your installed EchoLite app, or drag it to reposition it.
+On Android, downloads, audiobooks and Read Aloud can continue with the screen locked. Choose **Picture in picture** on a video to watch while using another app. The upper-left menu opens every section. Tap the floating mint icon to launch your installed EchoLite app, or drag it to reposition it.
 
-EchoOffGrid is in active development. [Installation notes and SHA-256 checksums](https://github.com/MettaMazza/EchoOffGrid/releases/tag/preview-2)
+EchoOffGrid is in active development. [Installation notes and SHA-256 checksums](https://github.com/MettaMazza/EchoOffGrid/releases/tag/preview-3)
 
 ![Audiobook and game shelves in an earlier Mac development build](docs/library.png)
 

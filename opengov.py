@@ -131,39 +131,43 @@ def write_text(item,target,progress,text):
     progress(len(payload),len(payload))
 
 
-def screen(db,params,token):
+def screen(db,params,token,corpo=None):
+    providers=corpo.PROVIDERS if corpo else PROVIDERS
+    base="/opencorpo" if corpo else "/opengov"
+    local_scope="rights LIKE 'OpenCorpo ·%'" if corpo else "rights NOT LIKE 'OpenCorpo ·%'"
+    fetch_records=corpo.lookup if corpo else lookup
     query=params.get("q",[""])[0].strip()[:160]
     source=params.get("source",["all"])[0]
-    if source not in PROVIDERS:
+    if source not in providers:
         source="local"
     number=params.get("page",["1"])[0]
     page=int(number) if number.isascii() and number.isdigit() and 0<len(number)<=4 else 1
     page=max(1,page)
-    options="".join(f'<option value="{k}" {"selected" if k==source else ""}>{v}</option>' for k,v in PROVIDERS.items())
+    options="".join(f'<option value="{k}" {"selected" if k==source else ""}>{v}</option>' for k,v in providers.items())
     form=f'<form class="gov-search"><label>Catalogue <select name=source>{options}</select></label><label>Keywords <input type=search name=q value="{escape(query)}" placeholder="Agency, title or topic"></label><button>Search records</button></form>'
     country=params.get("country",[""])[0]
-    directory=govports.directory(country,params.get("siteq",[""])[0][:200])
-    if country in govports.COUNTRIES and "source" not in params:return directory
+    directory=(corpo.directory if corpo else govports.directory)(country,params.get("siteq",[""])[0][:200])
+    if country in (corpo.PORTALS if corpo else govports.COUNTRIES) and "source" not in params:return directory
     notice=""
     if source=="local":
         pattern="%"+query+"%"
-        rows=list(db.execute("""SELECT * FROM discovery_item WHERE kind='Documents' AND (title LIKE ? OR preview LIKE ? OR provider LIKE ?) ORDER BY title,id LIMIT ? OFFSET ?""",(pattern,pattern,pattern,LIMIT+1,(page-1)*LIMIT)))
+        rows=list(db.execute(f"""SELECT * FROM discovery_item WHERE {local_scope} AND kind='Documents' AND (title LIKE ? OR preview LIKE ? OR provider LIKE ?) ORDER BY title,id LIMIT ? OFFSET ?""",(pattern,pattern,pattern,LIMIT+1,(page-1)*LIMIT)))
         more=len(rows)>LIMIT
         rows=rows[:LIMIT]
     else:
-        sources=("world","uk","us") if source=="all" else (source,)
+        sources=tuple(k for k in providers if k not in ("all","local")) if source=="all" else (source,)
         groups=[]
         unavailable=[]
         more=False
         with ThreadPoolExecutor(max_workers=len(sources)) as pool:
-            searches={name:pool.submit(lookup,name,query,page) for name in sources}
+            searches={name:pool.submit(fetch_records,name,query,page) for name in sources}
             for name,search in searches.items():
-                cache=name+" "+query
+                cache=("corpo " if corpo else "")+name+" "+query
                 try:
                     entries,has_next=search.result()
                     discovery.remember(db,"Documents",cache,page,entries,has_next)
                 except (OSError,ValueError,KeyError,http.client.HTTPException):
-                    unavailable.append(PROVIDERS[name])
+                    unavailable.append(providers[name])
                 cached=db.execute("SELECT items,more FROM discovery_page WHERE kind='Documents' AND query=? AND page=?",(cache,page)).fetchone()
                 if cached:
                     groups.append(json.loads(cached["items"]))
@@ -172,13 +176,14 @@ def screen(db,params,token):
         rows=[db.execute("SELECT * FROM discovery_item WHERE id=?",(key,)).fetchone() for key in ids]
         if unavailable:notice="Unavailable during this search: "+", ".join(unavailable)+". Previously fetched results are included when available."
         if not rows and unavailable and page==1:
-            rows=db.execute("SELECT * FROM discovery_item WHERE kind='Documents' AND (title LIKE ? OR preview LIKE ?) ORDER BY filename IS NULL,title LIMIT ?",("%"+query+"%","%"+query+"%",LIMIT)).fetchall()
+            rows=db.execute(f"SELECT * FROM discovery_item WHERE {local_scope} AND kind='Documents' AND (title LIKE ? OR preview LIKE ?) ORDER BY filename IS NULL,title LIMIT ?",("%"+query+"%","%"+query+"%",LIMIT)).fetchall()
     cards=[]
     for r in filter(None,rows):
         action=(f'<a href="/content/{r["id"]}">Read offline →</a>' if r["filename"] else
                 f'<form method=post action="/discover/add"><input type=hidden name=token value="{token}"><input type=hidden name=item value="{r["id"]}"><button>Save to Documents</button></form>')
         cards.append(f'<article class="gov-card"><small>{escape(r["provider"])} · {escape(r["ext"].lstrip(".").upper())}</small><h3>{escape(r["title"])}</h3><p>{escape(r["preview"])}</p>{action}</article>')
-    pagination=" ".join(f'<a href="/opengov?{escape(urlencode(dict(source=source,q=query,page=n)))}">{label}</a>'
+    pagination=" ".join(f'<a href="{base}?{escape(urlencode(dict(source=source,q=query,page=n)))}">{label}</a>'
                         for n,label in ((page-1,"Previous"),(page+1,"Next")) if (n<page and n>0) or (n>page and more))
-    return (directory+'<div class=section-head><p>Explore government statements, declassified records and original publications.</p><a href="/library/documents">Your Documents →</a></div>'+form+
+    introduction="Explore company registrations, funds, foundation filings and royal accounts." if corpo else "Explore government statements, declassified records and original publications."
+    return (directory+f'<div class=section-head><p>{introduction}</p><a href="/library/documents">Your Documents →</a></div>'+form+
             f'<p role=status>{escape(notice)}</p><div class="gov-grid">'+("".join(cards) or "<p>No matching records.</p>")+f'</div><nav class=pills>{pagination}</nav>')

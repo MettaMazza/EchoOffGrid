@@ -16,10 +16,51 @@ public class Main extends Activity {
     private static native int start(String home, String storage, String nativeDir, String key);
     private static int port;
     private static final String key = UUID.randomUUID().toString();
+    static java.net.HttpURLConnection connection(android.content.Context context,String path)throws Exception {
+        int active=launch(context.getApplicationContext());
+        java.net.HttpURLConnection c=(java.net.HttpURLConnection)new java.net.URL("http://127.0.0.1:"+active+path).openConnection();
+        c.setRequestProperty("Cookie","workstation="+key);c.setConnectTimeout(5000);c.setReadTimeout(120000);return c;
+    }
+    private Playback.Queue assembling;
     private WebView browser;
     private ValueCallback<Uri[]> picker;
+    private String exportUrl;
+    private String vpnCountry = "";
+
+    private void startPhoneVpn() {
+        startForegroundService(new Intent(this, PhoneVpn.class).setAction(PhoneVpn.CONNECT).putExtra("country", vpnCountry));
+        offerVpnNotifications();
+    }
+
+    private void offerVpnNotifications() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                !getSharedPreferences("vpn",0).getBoolean("askedNotifications",false)) {
+            getSharedPreferences("vpn",0).edit().putBoolean("askedNotifications",true).apply();
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},74);
+        }
+    }
+    private void exportFile(String url,String name,Uri destination){
+        new Thread(()->{
+            String message="File saved"+(destination==null?" to Downloads":"");
+            try {
+                if(destination==null)CaseExport.download(this,url,"workstation="+key,name);
+                else try(OutputStream out=getContentResolver().openOutputStream(destination)){CaseExport.copy(url,"workstation="+key,out);}
+            }catch(Exception ex){message= "Export failed: "+ex.getMessage();}
+            String result=message;runOnUiThread(()->Toast.makeText(this,result,Toast.LENGTH_LONG).show());
+        },"case-export").start();
+    }
     @Override protected void onActivityResult(int code,int result,Intent data){
         super.onActivityResult(code,result,data);
+        if(code==73){
+            if(result==RESULT_OK) startPhoneVpn();
+            else Toast.makeText(this,"Phone VPN permission was declined.",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if(code==72){
+            if(result==RESULT_OK && data!=null && data.getData()!=null && exportUrl!=null)exportFile(exportUrl,"",data.getData());
+            exportUrl=null;return;
+        }
         if(code!=71 || picker==null)return;
         Uri[] files=null;
         if(result==RESULT_OK && data!=null){
@@ -102,6 +143,8 @@ public class Main extends Activity {
 
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        RestoreVpn.restore(this);
+        if (RestoreVpn.wanted(this)) offerVpnNotifications();
         TextView status = new TextView(this);
         status.setPadding(40,100,40,40);
         status.setText("Opening your offline workstation…");
@@ -122,6 +165,7 @@ public class Main extends Activity {
             startForegroundService(new Intent(this,SyncService.class));
         String origin = "http://127.0.0.1:" + active;
         browser = new WebView(this);
+        browser.getSettings().setUserAgentString(browser.getSettings().getUserAgentString()+" EchoOffGrid/Android");
         browser.setBackgroundColor(0xff14181c);
         browser.getSettings().setJavaScriptEnabled(true);
         browser.getSettings().setDomStorageEnabled(true);
@@ -129,6 +173,35 @@ public class Main extends Activity {
         browser.getSettings().setAllowFileAccess(false);
         browser.getSettings().setAllowContentAccess(false);
         CookieManager.getInstance().setCookie(origin, "workstation=" + key + "; Path=/; HttpOnly; SameSite=Strict");
+        if(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.WEB_MESSAGE_LISTENER)){
+            androidx.webkit.WebViewCompat.addWebMessageListener(browser,"echoAudio",java.util.Collections.singleton(origin),(view,message,source,main,reply)->{
+                if(!main || !origin.equals(source.toString()))return;
+                try{
+                    org.json.JSONObject data=new org.json.JSONObject(message.getData());
+                    String op=data.getString("op");Playback player=Playback.current;
+                    switch(op){
+                        case "begin":assembling=new Playback.Queue(data);break;
+                        case "parts":
+                            if(assembling!=null){
+                                org.json.JSONArray parts=data.getJSONArray("values");
+                                for(int n=0;n<parts.length();n++)assembling.parts.add(parts.getString(n));
+                            }
+                            break;
+                        case "play":
+                            if(assembling!=null && !assembling.parts.isEmpty()){
+                                Playback.pending=assembling;assembling=null;startForegroundService(new Intent(this,Playback.class));
+                            }
+                            break;
+                        case "pause":if(player!=null)player.pause();break;
+                        case "resume":if(player!=null)player.resume();break;
+                        case "stop":if(player!=null)player.end("");break;
+                        case "speed":if(player!=null)player.setSpeed(data.getDouble("value"));break;
+                        case "seek":if(player!=null)player.seek(data.getLong("value"));break;
+                    }
+                    reply.postMessage(Playback.snapshot().toString());
+                }catch(Exception e){android.util.Log.w("EchoAudio","Playback command failed",e);}
+            });
+        }
         browser.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onShowFileChooser(WebView view,ValueCallback<Uri[]> callback,FileChooserParams params){
                 if(picker!=null)picker.onReceiveValue(null);
@@ -164,6 +237,14 @@ public class Main extends Activity {
                     return new WebResourceResponse("text/plain","UTF-8",403,"Offline viewer",java.util.Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));
                 if (uri.getPort()!=active || !"127.0.0.1".equals(uri.getHost())) return null;
                 try {
+                    if("POST".equals(request.getMethod()) &&
+                            java.util.Arrays.asList("/discover/add","/discover/save","/retry","/sync","/wiki-edition").contains(uri.getPath()))
+                        startForegroundService(new Intent(Main.this,Transfers.class));
+                    if ("/phone-vpn-status".equals(uri.getPath())) {
+                        org.json.JSONObject status = new org.json.JSONObject();
+                        status.put("enabled",PhoneVpn.enabled).put("status",PhoneVpn.state);
+                        return new WebResourceResponse("application/json","UTF-8",new ByteArrayInputStream(status.toString().getBytes("UTF-8")));
+                    }
                     if("POST".equals(request.getMethod()) && uri.getPath().matches("/native-metadata/personal-[a-f0-9]{64}") &&
                         request.getRequestHeaders().entrySet().stream().anyMatch(h -> "X-Echo-Library".equalsIgnoreCase(h.getKey()) && "import".equals(h.getValue()))){
                         FileMetadata.read(Main.this,uri.getLastPathSegment());
@@ -186,26 +267,41 @@ public class Main extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 boolean local = "http".equals(uri.getScheme()) && "127.0.0.1".equals(uri.getHost()) && uri.getPort() == active;
-                if(request.isForMainFrame() && request.hasGesture() && "https".equals(uri.getScheme()) && view.getUrl()!=null){
-                    Uri page=Uri.parse(view.getUrl());
-                    if("127.0.0.1".equals(page.getHost()) && page.getPort()==active &&
-                       ("/opengov".equals(page.getPath()) || "/opengov/portal".equals(page.getPath()) || "/openintel".equals(page.getPath()))){
-                        try{startActivity(new Intent(Intent.ACTION_VIEW,uri));}
-                        catch(android.content.ActivityNotFoundException e){Toast.makeText(Main.this,"No web browser installed",Toast.LENGTH_SHORT).show();}
-                        return true;
-                    }
+                if (!local && request.hasGesture() && ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()))) {
+                    view.loadUrl(origin+"/private-browser?to="+Uri.encode(uri.toString()));
+                    return true;
                 }
-                if(local && request.isForMainFrame() && "/openintel/camera".equals(uri.getPath())){
-                    Uri page = Uri.parse(view.getUrl());
-                    if(request.hasGesture() && "/openintel".equals(page.getPath()) && page.getPort()==active)
-                        startActivity(new Intent(Main.this,IntelCamera.class));
+                if(local && "/phone-vpn".equals(uri.getPath())) {
+                    if (request.isForMainFrame() && request.hasGesture() && view.getUrl()!=null &&
+                            view.getUrl().startsWith(origin+"/")) {
+                        if ("off".equals(uri.getQueryParameter("action"))) startService(new Intent(Main.this,PhoneVpn.class).setAction(PhoneVpn.DISCONNECT));
+                        else if ("on".equals(uri.getQueryParameter("action"))) {
+                            vpnCountry=uri.getQueryParameter("country");
+                            if(vpnCountry!=null && !vpnCountry.matches("[a-z]{2}|")) vpnCountry=null;
+                            Intent consent=android.net.VpnService.prepare(Main.this);
+                            if(consent!=null) startActivityForResult(consent,73); else startPhoneVpn();
+                        }
+                    }
+                    return true;
+                }
+                if(local && request.isForMainFrame() && (uri.getPath().matches("/openintel/cases/[0-9]+/export") || "/archive/backup".equals(uri.getPath()) || "/evidence.csv".equals(uri.getPath()))){
+                    String name;
+                    if("/archive/backup".equals(uri.getPath()))name="EchoOffGrid.sqlite3";
+                    else if("/evidence.csv".equals(uri.getPath()))name="EchoOffGrid-evidence.csv";
+                    else name="EchoOffGrid-case-"+uri.getPathSegments().get(2)+".zip";
+                    if(android.os.Build.VERSION.SDK_INT>=29)exportFile(uri.toString(),name,null);
+                    else{
+                        exportUrl=uri.toString();
+                        startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                            .setType(CaseExport.mime(uri.toString())).putExtra(Intent.EXTRA_TITLE,name),72);
+                    }
                     return true;
                 }
                 if(local && request.isForMainFrame() && "/private-open".equals(uri.getPath())){
                     Uri page=Uri.parse(view.getUrl());
-                    if(request.hasGesture() && "/private-browser".equals(page.getPath())){
+                    if(page.getPort()==active && "127.0.0.1".equals(page.getHost()) && "/private-browser".equals(page.getPath())){
                         try{int port=Integer.parseInt(uri.getQueryParameter("port"));
-                            if(port>=1024 && port<=65535)startActivity(new Intent(Main.this,PrivateBrowser.class).putExtra("port",port));
+                            if(port>=1024 && port<=65535)startActivity(new Intent(Main.this,PrivateBrowser.class).putExtra("port",port).putExtra("url",uri.getQueryParameter("url")));
                         }catch(NumberFormatException ignored){}
                     }
                     return true;

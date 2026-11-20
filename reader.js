@@ -5,6 +5,9 @@
   const popup = document.querySelector('#read-selection');
   const button = id => document.getElementById('read-' + id);
   const clock = button('clock'), seek = button('seek'), rate = button('speed');
+  const savedRate=document.cookie.match(/(?:^|; )echo_read_speed=([0-9.]+)(?:;|$)/);
+  if(savedRate && [...rate.options].some(option=>parseFloat(option.value)===Number(savedRate[1])))
+    rate.value=[...rate.options].find(option=>parseFloat(option.value)===Number(savedRate[1])).value;
   const player = new Audio();
   player.preservesPitch = true;
   const cache = new Map();
@@ -46,6 +49,60 @@
     if(part)parts.push(part);
     return parts.filter(p=>/[\p{L}\p{N}]/u.test(p));
   }
+  const native=window.echoAudio;
+  const send=(op,fields={})=>native.postMessage(JSON.stringify({op,...fields}));
+  const page=location.pathname+location.search;
+  let active=null;
+  function nativeStart(kind,values){
+    send('begin',{kind,page,title:document.title.split(' | ')[0],token:bar.dataset.token,speed:kind==='read'?parseFloat(rate.value):1});
+    for(let i=0;i<values.length;i+=64)send('parts',{values:values.slice(i,i+64)});
+    send('play');
+  }
+  if(native){
+    const audio=main.querySelector('audio[controls]');
+    let play,progress,stopAudio,chapter;
+    if(audio){
+      audio.hidden=true;
+      play=document.createElement('button');play.textContent='Play audiobook';
+      progress=document.createElement('input');progress.type='range';progress.min=0;progress.max=1000;progress.value=0;
+      progress.setAttribute('aria-label','Audiobook position');
+      stopAudio=document.createElement('button');stopAudio.textContent='Stop';
+      chapter=document.createElement('output');
+      audio.after(play,progress,stopAudio,chapter);
+      play.onclick=()=>{
+        if(active?.kind==='book' && active.page===page){send(active.paused?'resume':'pause');return;}
+        const source=new URL(audio.src);
+        const first=Number(source.searchParams.get('part')||0);
+        const values=[source.pathname+source.search];
+        for(const anchor of main.querySelectorAll('nav.pills a')){
+          const part=Number(new URL(anchor.href).searchParams.get('part'));
+          if(part>first){const next=new URL(source);next.searchParams.set('part',part);values.push(next.pathname+next.search);}
+        }
+        nativeStart('book',values);
+      };
+      progress.onchange=()=>send('seek',{value:Math.round(progress.value*active.duration/1000)});
+      stopAudio.onclick=()=>send('stop');
+    }
+    native.onmessage=e=>{
+      active=JSON.parse(e.data);
+      const reading=active.kind==='read', book=active.kind==='book' && active.page===page;
+      if(play){
+        play.textContent=book?(active.paused?'Resume':'Pause'):'Play audiobook';
+        progress.disabled=stopAudio.disabled=!book;
+        if(document.activeElement!==progress)progress.value=book&&active.duration?active.position*1000/active.duration:0;
+        chapter.textContent=book?time(active.position/1000)+' / '+time(active.duration/1000):'';
+      }
+      button('pause').disabled=button('stop').disabled=seek.disabled=!reading;
+      button('pause').textContent=reading && active.paused?'Resume':'Pause';
+      button('status').textContent=active.error || (reading?(active.paused?'Paused':active.ready?'Reading':'Preparing voice…'):'Emma · Offline voice');
+      if(document.activeElement!==seek)seek.value=reading && active.duration?active.position*1000/active.duration:0;
+      clock.textContent=reading?time(active.position/1000)+' / '+time(active.duration/1000):'0:00';
+    };
+    send('status');
+    const poll=setInterval(()=>{if(!document.hidden)send('status');},600);
+    window.addEventListener('pagehide',()=>clearInterval(poll),{once:true});
+  }
+
   function fetchAudio(n) {
     if (!cache.has(n)) {
       const pending = (async()=>{
@@ -93,13 +150,15 @@
       const text=await getText();
       if(session!==track)return;
       chunks=split(text);if(!chunks.length){stop('No readable text on this page');return;}
+      if(native){nativeStart("read",chunks);return;}
       lengths=chunks.map(x=>Math.max(.5,x.split(/\s+/).length/2.6));
       playPart(0);
     }catch(error){if(session===track)stop(error.message);}
   }
   player.ontimeupdate=display;
-  rate.onchange=()=>{player.playbackRate=parseFloat(rate.value);};
+  rate.onchange=()=>{if(native && active?.kind==="read")send("speed",{value:parseFloat(rate.value)});player.playbackRate=parseFloat(rate.value);document.cookie='echo_read_speed='+player.playbackRate+'; Path=/; Max-Age=31536000; SameSite=Strict';};
   seek.onchange=()=>{
+    if(native){if(active?.kind==="read")send("seek",{value:Math.round(seek.value*active.duration/1000)});return;}
     if(!chunks.length)return;
     let target=Number(seek.value)/1000*total(), n=0;
     while(n<lengths.length-1 && target>=lengths[n])target-=lengths[n++];
@@ -107,11 +166,12 @@
     else playPart(n,Math.min(1,target/lengths[n]));
   };
   button('pause').onclick=()=>{
+    if(native){send(active?.paused?"resume":"pause");return;}
     paused=!paused;
     if(paused)player.pause();else if(!loading)player.play().catch(()=>{paused=true;display()});
     button('status').textContent=paused?'Paused':'Reading';display();
   };
-  button('stop').onclick=()=>stop('Stopped');
+  button('stop').onclick=()=>native?send('stop'):stop('Stopped');
   function selection(doc, frame) {
     const sel=doc.getSelection(), value=sel?.toString().trim();
     if(!value || !sel.rangeCount){if(doc.activeElement!==popup)popup.hidden=true;return;}

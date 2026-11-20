@@ -19,6 +19,23 @@ def start(root, native, token):
     os.environ["SSL_CERT_FILE"] = str(Path(__file__).with_name("cacert.pem"))
     server = dashboard.create_server(0, root / "archive.sqlite3", kit=kit)
     class MobileDashboard(dashboard.Dashboard):
+        def do_GET(self):
+            if self.path == "/mobile-transfer-count" and self.local_request():
+                from contextlib import closing
+                with closing(dashboard.connect(server.database)) as db:
+                    count=sum(db.execute(f"SELECT count(*) FROM {table} WHERE state IN ('Queued','Downloading')").fetchone()[0]
+                              for table in ("content_download","pending_download"))
+                body=str(count+int(bool(server.editions.active))).encode()
+                self.send_response(200)
+                self.send_header("Content-Length",str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            if self.path == "/archive/backup" and self.local_request() and self.headers.get("X-Echo-Export") == "1":
+                self.backup_archive()
+                return
+            super().do_GET()
+
         def local_request(self):
             cookies = SimpleCookie()
             try:
@@ -30,6 +47,8 @@ def start(root, native, token):
                 auth.value.encode(), token.encode())
     server.private_browser.binary = Path(native) / "libtor.so"
     server.private_browser.state = Path(__file__).resolve().parents[4] / "Tor"
+    from browser_proxy import BrowserProxy
+    server.phone_proxy = BrowserProxy(str(server.private_browser.state.parent/"vpn"/"s"))
     server.android = True
     server.RequestHandlerClass = MobileDashboard
     server.companion_status = root / "sync-status.json"

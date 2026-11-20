@@ -14,6 +14,21 @@ public class IntelCamera extends Activity {
     private static boolean initialized;
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        String stream=getIntent().getStringExtra("stream");
+        if(stream!=null){
+            Uri uri=Uri.parse(stream);
+            boolean clip="s3-eu-west-1.amazonaws.com".equals(uri.getHost()) && uri.getPath()!=null && uri.getPath().matches("/jamcams\\.tfl\\.gov\\.uk/[0-9.]+\\.mp4");
+            boolean live="wzmedia.dot.ca.gov".equals(uri.getHost()) && uri.getPath()!=null && uri.getPath().endsWith(".m3u8");
+            if(!"https".equals(uri.getScheme()) || (!clip && !live)){finish();return;}
+            android.widget.FrameLayout stage=new android.widget.FrameLayout(this);
+            android.widget.VideoView video=new android.widget.VideoView(this);
+            stage.addView(video,new android.widget.FrameLayout.LayoutParams(-1,-2,android.view.Gravity.CENTER));
+            setContentView(stage);
+            android.widget.MediaController controls=new android.widget.MediaController(this);
+            controls.setAnchorView(video);video.setMediaController(controls);
+            video.setVideoURI(uri);video.start();
+            return;
+        }
         if(!initialized){ WebView.setDataDirectorySuffix("openintel-camera"); initialized=true; }
         web = new WebView(this);
         web.getSettings().setJavaScriptEnabled(true);
@@ -37,5 +52,5 @@ public class IntelCamera extends Activity {
         if(!"https".equals(uri.getScheme()) || host==null)return false;
         return host.endsWith(".brownrice.com") || Arrays.asList("www.mauirealestate.net","cdn.jsdelivr.net","unpkg.com","code.jquery.com").contains(host);
     }
-    @Override public void onDestroy() { web.destroy(); super.onDestroy(); }
+    @Override public void onDestroy() { if(web!=null)web.destroy(); super.onDestroy(); }
 }

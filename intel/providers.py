@@ -26,6 +26,8 @@ SOURCES = {
     "imagery": ("Earth imagery", "NASA Worldview / GIBS", "Worldwide", 1800, "Public API", "NASA GIBS · MODIS / Terra", "https://www.earthdata.nasa.gov/data/tools/worldview"),
     "quakes": ("Hazards & sea", "USGS earthquakes", "Worldwide", 300, "Public API", "US Geological Survey", "https://earthquake.usgs.gov/earthquakes/feed/v1.0/index.php"),
     "buoys": ("Hazards & sea", "NOAA buoy observations", "Participating stations worldwide", 600, "Public API", "NOAA National Data Buoy Center", "https://www.ndbc.noaa.gov/"),
+    "earth-frame": ("Earth imagery", "NOAA GOES", "Full disk", 0, "On demand", "NOAA / NESDIS", "https://www.star.nesdis.noaa.gov/GOES/"),
+    "visual": ("Cameras", "Visual observations", "Published camera and satellite frames", 0, "On demand", "See original publisher", ""),
     "local": ("Local receiver", "Local receiver import", "Your receiving station", 0, "File import", "Local observation", ""),
 }
 REGIONS = {"world": ("World overview", 0, 0), "maui": ("Kihei, Maui", 20.72, -156.45), "aberdeen": ("Aberdeen & North Sea", 57.15, -2.10), "finland": ("Helsinki & Gulf of Finland", 60.17, 24.94)}

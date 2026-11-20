@@ -33,6 +33,7 @@ final class LocalMedia {
         } else {
             String folder;
             switch(kind) {
+                case "listen":folder="04-Entertainment/Audio";break;
                 case "watch": folder="04-Entertainment/Video";break;
                 case "shows": folder="04-Entertainment/Shows";break;
                 case "books": folder="04-Entertainment/Books";break;

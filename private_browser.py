@@ -40,6 +40,14 @@ def address(value):
                        quote(parsed.query, safe="/%?:@-._~!$&'()*+,;="), ""))
 
 
+def link_address(value):
+    parsed = urlsplit(value)
+    if parsed.scheme.lower() == "http":
+        value = parsed._replace(scheme="https").geturl()
+    clean = address(value)
+    return clean + ("#" + quote(parsed.fragment, safe="/?=&%") if parsed.fragment else "")
+
+
 class Reader(HTMLParser):
     blocks = {"h1","h2","h3","h4","p","li","blockquote","strong","em","ul","ol","br","pre","code"}
     hidden = {"head","script","style","svg","noscript","template","iframe","canvas","object","video","audio","form"}
@@ -256,5 +264,8 @@ def screen(session, token, url="", article="", message=""):
             f'<label>Exit location<select name=country>{options}</select></label><button name=action value=connect>Connect</button>'
             f'<button name=action value=disconnect>Disconnect</button></form>'
             f'<p id=private-status data-connecting="{int(connecting)}" role=status>{escape(status)}</p>'
-            '<small>Only this browser uses Tor. Choosing a country narrows the pool of exits. Signing in can identify you to a site.</small></section>'
-            f'<p><a class="native-browser-launch" id=native-browser-launch href="{launch}" aria-disabled="{str(not ready).lower()}">Open private browser →</a></p>')
+            f'<small>External links open over Tor. Choosing a country narrows the pool of exits. Signing in can identify you to a site.</small></section>'
+            f'<p role=status>{escape(message)}</p>'
+            f'<p><a data-destination="{escape(url if not article else "",quote=True)}" class="native-browser-launch" id=native-browser-launch href="{launch}" aria-disabled="{str(not ready).lower()}">Open private browser →</a></p>'
+            f'<form id="private-links" method="post" action="/private-browser">{hidden}<input type=hidden name=action value=browse></form>'
+            f'<article>{article}</article>')

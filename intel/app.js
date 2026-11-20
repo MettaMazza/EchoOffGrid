@@ -50,11 +50,11 @@
     const src=model.sources,needle=$('#intel-find').value.trim().toLowerCase();
     const rows=model.rows.filter(r=>!disabled.has(src[r.source].layer)&&(!needle||[r.title,src[r.source].title,r.detail].join(' ').toLowerCase().includes(needle)));
     const visible=rows.map(r=>({...r,color:colors[src[r.source].layer],stale:r.source!=='orbit'&&model.at-r.time>Math.max(900,src[r.source].interval*3)}));
-    let r=rows.find(v=>v.id===selected)||rows[0];
+    let r=selected?rows.find(v=>v.id===selected):rows[0];
     const cameraPin={id:'publisher-maui',lat:20.716,lon:-156.448,color:colors.Cameras};
     const mapped=mode==='reports'&&!at&&!disabled.has('Cameras')&&['maui','world'].includes(region)?visible.concat(cameraPin):visible;
-    map('view',{rows:mapped,center:model.center,key:region,selected:r?.id});
-    if(zoomPending&&r){zoomPending=false;map('locate',[r.lon,r.lat])}
+    map('view',{rows:mapped.filter(x=>!x.no_map_point),center:model.center,key:region,selected:r?.id});
+    if(zoomPending&&r){zoomPending=false;if(!r.no_map_point)map('locate',[r.lon,r.lat])}
     const list=$('#intel-rows');list.replaceChildren();
     for(const row of rows.slice(0,120)){
       const b=button('',()=>pick(row.id,true));b.className='intel-result';b.style.setProperty('--layer',colors[src[row.source].layer]);
@@ -68,11 +68,11 @@
       const info=src[r.source];detail.style.setProperty('--layer',colors[info.layer]);
       detail.append(text('small',mode==='sample'?'OFFLINE SAMPLE':r.source==='orbit'?'PREDICTED':r.source==='local'?'RECEIVED LOCALLY':info.layer.toUpperCase()),text('h3',r.title));
       if(r.media){const img=document.createElement('img');img.src='/openintel/image/'+r.id;img.alt=r.title;detail.append(img)}
-      detail.append(text('p',r.detail),text('strong',r.source==='orbit'?'Predicted for '+clock(r.time):(r.source==='imagery'?'Composite day · '+clock(r.time).slice(0,10):'Observed '+clock(r.time))),text('span',info.title+' · '+info.rights));
+      detail.append(text('p',r.detail),text('strong',r.source==='orbit'?'Predicted for '+clock(r.time):(r.source==='imagery'?'Composite day · '+clock(r.time).slice(0,10):(r.time_basis||'Observed')+' '+clock(r.time))),text('span',(r.publisher||info.title)+' · '+info.rights));
       if(r.received)detail.append(text('span','Fetched '+clock(r.received)));
       if(r.epoch){detail.append(text('span','Orbital elements '+clock(r.epoch)));
         detail.append(text('p',r.window?'Pass above 10° · '+clock(r.window.start)+' to '+clock(r.window.end)+' · peak '+r.window.peak+'°':'No pass above 10° in the next 36 hours.'))}
-      detail.append(text('span',r.lat.toFixed(3)+'°, '+r.lon.toFixed(3)+'°'));
+      if(!r.no_map_point)detail.append(text('span',r.lat.toFixed(3)+'°, '+r.lon.toFixed(3)+'°'));
       if(!at&&mode==='reports'&&r.source!=='orbit')detail.append(text('small','Last report '+age(r.time)));
       if(mode!=='sample'&&r.source!=='ais'){
         const save=button(r.saved?'Saved to Library':'Save observation',async()=>{save.disabled=true;try{await post('save',{id:r.id,at:r.time});await load();say('Saved to Library → Documents')}catch(e){save.disabled=false;say(e.message)}});
@@ -83,8 +83,8 @@
         detail.append(collapse)
       }
     } else {
-      detail.append(text('h3',mode==='saved'?'No saved observations here':'No matching observations'),
-        text('p',mode==='saved'?'Save an observation from Latest to keep it here.':'Choose another layer or region, start live updates, or explore the offline samples.'))
+      detail.append(text('h3',selected?'Selected report unavailable':mode==='saved'?'No saved observations here':'No matching observations'),
+        text('p',selected?'This exact report is outside this view or has expired. Select another report to continue.':mode==='saved'?'Save an observation from Latest to keep it here.':'Choose another layer or region, start live updates, or explore the offline samples.'))
     }
     const images=rows.filter(item=>item.media&&item.source==='imagery'&&r&&r.source==='imagery'&&item.id!==r.id);
     if(images.length){
@@ -114,7 +114,7 @@
     region=k;localStorage.setItem('intel-region',k);selected='';at=0;stopPlay();
     const menu=$('#intel-region');
     if(!Array.from(menu.options).some(o=>o.value===k))menu.add(new Option(k,k),menu.options.length-1);
-    menu.value=k;route();await load();await update()
+    menu.value=k;document.dispatchEvent(new Event('intel-region-change'));route();await load();await update()
   }
   $('#intel-region').onchange=e=>{const custom=e.target.value==='custom';$('#intel-custom').hidden=!custom;if(!custom)change(e.target.value)};
   $('#intel-custom').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);$('#intel-custom').hidden=true;change(Number(f.get('lat')).toFixed(3)+','+Number(f.get('lon')).toFixed(3))};

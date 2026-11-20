@@ -107,12 +107,15 @@ class Companion:
                 finally:
                     partial.unlink(missing_ok=True)
 
-    def sync(self, kit, archive, dictionary):
-        self.receive_root = archive.parent if archive else kit
+    def prepare_intake(self, root):
+        self.receive_root = root
         self.mac_paused = not fits(self.receive_root, 0)
         with self.request("GET","/intake") as response:
             self.phone_capacity = json.load(response).get("available") if response.status == 200 else None
             self.phone_paused = self.phone_capacity is not None and self.phone_capacity < 0
+
+    def sync(self, kit, archive, dictionary):
+        self.prepare_intake(archive.parent if archive else kit)
         with self.request("GET","/inventory") as response:
             if response.status!=200:
                 raise RuntimeError("Could not read paired library inventory")
@@ -158,6 +161,14 @@ class Companion:
         for p in content.iterdir():
             if p.is_file() and not p.is_symlink() and portable("Content/"+p.name) and policy.allows(p.name,"android"):
                 self.send(p,"Content/"+p.name)
+        self.merge_records(archive)
+
+    def sync_records(self, archive):
+        """Synchronise archive records and their embedded case originals without library media."""
+        self.prepare_intake(archive.parent)
+        self.merge_records(archive)
+
+    def merge_records(self, archive):
         with self.request("GET","/revision") as response:
             if response.status!=200:
                 raise RuntimeError("Could not check the phone archive")

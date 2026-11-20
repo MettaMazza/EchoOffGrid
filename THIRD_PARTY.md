@@ -71,3 +71,11 @@ The offline History index adapts English Wikipedia text under CC BY-SA 4.0. Arti
 ## OpenIntel
 
 The pure Python components of [sgp4 2.25](https://pypi.org/project/sgp4/2.25/) and [websockets 13.1](https://pypi.org/project/websockets/13.1/) are distributed under MIT and BSD-3-Clause respectively. Their licence texts are in vendor/openintel. Fintraffic data is supplied by Fintraffic / Digitraffic under [CC BY 4.0](https://www.digitraffic.fi/en/terms-of-service/). Aircraft records are supplied by adsb.lol under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Earthquake and buoy samples credit USGS and NOAA respectively. Provider links, dates and access types appear in the OpenIntel catalogue and observation details.
+
+The development camera directory contains public location and feed metadata from [Transport for London](https://tfl.gov.uk/info-for/open-data-users/), [Caltrans Commercial Wholesale Web Portal](https://cwwp2.dot.ca.gov/documentation/cctv/cctv.htm) and [Fintraffic / Digitraffic](https://www.digitraffic.fi/en/terms-of-service/). Powered by TfL Open Data. The offline example pictures credit NASA GIBS, NOAA NESDIS STAR and the USGS Hawaiian Volcano Observatory. Source URLs and retrieval dates accompany the images in intel/previews/sources.json.
+
+## OpenCorpo
+
+The register directory adapts the [GLEIF Registration Authorities List v1.9](https://www.gleif.org/lei-data/code-lists/gleif-registration-authorities-list/2026-09-30_ra-list-v1.9.csv). The included [Berkshire Hathaway legal entity record](https://api.gleif.org/api/v1/lei-records/5493000C01ZX7D35SD85) is a GLEIF API snapshot retrieved 19 November 2026. US foundation search uses [ProPublica Nonprofit Explorer](https://projects.propublica.org/nonprofits/api). Linked reports credit their respective publishers.
+
+Android phone VPN uses hev-socks5-tunnel at commit 4702e9ad2815f3a04e2af63b2e7eb36e861c9c86 with its pinned submodules. Build with Android NDK ndk-build, APP_BUILD_SCRIPT=Android.mk, NDK_APPLICATION_MK=Application.mk, APP_ABI=arm64-v8a and APP_PLATFORM=android-28. See vendor/private-browser/notices/hev-tunnel.txt.

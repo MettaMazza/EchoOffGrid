@@ -10,6 +10,9 @@ javac --release 8 -classpath "$jar" -d "$out/classes" android/qa/Checks.java
 jar cf "$out/classes.jar" -C "$out/classes" .
 "$build/d8" --min-api 28 --lib "$jar" --output "$out/dex" "$out/classes.jar"
 "$build/aapt2" link -I "$jar" --manifest android/qa/AndroidManifest.xml -o "$out/check.apk"
+mkdir -p "$out/test-assets/assets"
+cp android/qa/cases.js "$out/test-assets/assets/"
+(cd "$out/test-assets" && zip -q "$out/check.apk" assets/cases.js)
 (cd "$out/dex" && zip -q "$out/check.apk" classes.dex)
 "$build/zipalign" -f 4 "$out/check.apk" "$out/aligned.apk"
 "$build/apksigner" sign --ks dist/android/review.jks --ks-pass pass:android --out "$out/checks.apk" "$out/aligned.apk"

@@ -74,3 +74,38 @@ def predict(rows,key,stamp):
                            detail="SGP4 predicted ground position · geometric passes above 10° elevation",
                            trail=trail,window=pass_window(raw,key,stamp//300*300)))
     return result
+
+@lru_cache(maxsize=1)
+def directory():
+    from pathlib import Path
+    records=json.loads(Path(__file__).with_name("orbit-directory.json").read_text())["rows"]
+    return {str(r["NORAD_CAT_ID"]):r for r in records}
+
+def selected_prediction(service,key,number,refresh=False):
+    from contextlib import closing
+    import time
+    from . import providers
+    from .service import connect
+    known=directory().get(number)
+    if not known:raise ValueError("Unknown satellite catalogue number")
+    now=int(time.time())
+    with closing(connect(service.path)) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS orbit_choice(number TEXT PRIMARY KEY,requested INTEGER,body TEXT)")
+        cached=db.execute("SELECT requested,body FROM orbit_choice WHERE number=?",(number,)).fetchone()
+        if refresh and (not cached or now-cached[0]>=7200):
+            # Claim the fetch before opening the connection so repeated taps share the cooldown.
+            with db:
+                reserved=db.execute("""INSERT INTO orbit_choice VALUES(?,?,NULL) ON CONFLICT(number) DO UPDATE SET requested=excluded.requested
+                    WHERE requested<=?""",(number,now,now-7200)).rowcount
+            if reserved:
+                try:
+                    batch=providers.feed("https://celestrak.org/NORAD/elements/gp.php?CATNR="+number+"&FORMAT=JSON")
+                    found=next((r for r in batch if str(r.get("NORAD_CAT_ID"))==number),None)
+                    if not found:raise ValueError("No updated elements available")
+                except (OSError,KeyError,TypeError) as err:raise ValueError("CelesTrak is unavailable. The bundled elements remain available.") from err
+                with db:db.execute("UPDATE orbit_choice SET body=? WHERE number=?",(json.dumps(found),number))
+                known=found
+        elif cached and cached[1]:known=json.loads(cached[1])
+    rows=predict([known],key,now)
+    if not rows:raise ValueError("Orbital elements are too old for a current prediction. Refresh this satellite while connected.")
+    return rows[0]

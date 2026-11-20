@@ -265,9 +265,15 @@ EPUB, text, PDF, supported audio and video, and self-contained HTML games open i
 
 ## Private Browser
 
-Choose **Private Browser** (under **More** on a phone), select an exit location and press **Connect**. Once ready, choose **Open private browser**. The first page checks whether the connection uses Tor. Enter another HTTPS address and press **Go**. Use **Back** to revisit the prior page and **Done** to return to EchoOffGrid. **Disconnect** stops Tor.
+Click a web link in EchoOffGrid to open its destination through Tor. EchoOffGrid connects automatically and waits for the protected connection. Local articles and library files open immediately. In **Private Browser** you can choose an exit location or open DuckDuckGo. Background catalogue refreshes on the Mac use the normal connection.
 
-Websites render in a separate browser view with a temporary browsing profile. The browser needs an internet connection. Only this view uses Tor. A country preference narrows the pool of exits, and signing in can identify you to a website.
+On Android, use the **Phone VPN** switch in the header to route your native browser and other apps through Tor. Android asks for VPN consent the first time. The switch stays on when you leave EchoOffGrid. Tor carries TCP traffic. UDP-only apps can lose connectivity while the VPN is on. Android supports one active VPN per profile. For protection across service restarts, select EchoOffGrid in Android’s VPN settings and enable **Always-on VPN** and **Block connections without VPN**.
+
+EchoOffGrid remembers the VPN switch and selected exit on the phone. After an ordinary reboot, it requests reconnection after the first unlock if Android still grants it VPN permission. A deliberate force-stop suspends the app until you open it again. Allow notifications for the small shield and connection status in the notification shade. Android and the phone maker control the final status-bar layout.
+
+On REDMAGIC, open **App info → App battery usage → Battery optimization** for EchoOffGrid. Set **Auto-start** and **Background running** to **Allowed**. Some REDMAGIC builds suppress the boot event even with these permissions. Use **Settings → VPN → EchoOffGrid → Always-on VPN** for Android-managed startup. Keep **Block connections without VPN** off if you want internet access while the EchoOffGrid switch is off.
+
+Downloads are stored in a local queue. They can continue while the workstation process is running and interrupted jobs are requeued when it starts again. On Android, start a download, audiobook or Read all while the app is open. Active downloads and audio use foreground services so you can switch apps or lock the screen. Pause, resume or stop listening through the Android media controls. On a video page, tap **Picture in picture** to watch over another app. Android must allow picture-in-picture for EchoOffGrid. Force-stopping the app ends active work. Interrupted downloads rejoin the queue on the next launch.
 
 ## Building the populated preview
 

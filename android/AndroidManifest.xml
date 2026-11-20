@@ -4,13 +4,29 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <queries><package android:name="dev.echolite.android"/></queries>
     <application android:icon="@mipmap/echo_launcher" android:roundIcon="@mipmap/echo_launcher" android:label="EchoOffGrid" android:allowBackup="false" android:extractNativeLibs="true" android:usesCleartextTraffic="true" android:theme="@android:style/Theme.Material.NoActionBar">
         <provider android:name=".SharedFile" android:authorities="dev.echooffgrid.mobile.files" android:exported="false" android:grantUriPermissions="true"/>
+        <service android:name=".Playback" android:exported="false" android:foregroundServiceType="mediaPlayback"/>
+        <service android:name=".Transfers" android:exported="false" android:foregroundServiceType="dataSync"/>
         <service android:name=".SyncService" android:exported="false" android:foregroundServiceType="connectedDevice"/>
-        <activity android:name=".IntelCamera" android:process=":intelcamera" android:exported="false"/>
+        <receiver android:name=".RestoreVpn" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+        <service android:name=".PhoneVpn" android:permission="android.permission.BIND_VPN_SERVICE" android:foregroundServiceType="systemExempted" android:exported="false">
+            <intent-filter><action android:name="android.net.VpnService"/></intent-filter>
+        </service>
         <activity android:name=".PrivateBrowser" android:process=":private" android:exported="false" android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize"/>
-        <activity android:name=".Player" android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize" android:exported="false"/>
+        <activity android:name=".Player" android:supportsPictureInPicture="true" android:resizeableActivity="true" android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize" android:exported="false"/>
         <activity android:name=".Main" android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>

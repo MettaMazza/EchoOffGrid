@@ -87,6 +87,7 @@ class News:
         self.worker = None
         with closing(sqlite3.connect(database)) as db:
             db.executescript("""
+                CREATE TABLE IF NOT EXISTS news_original(id INTEGER PRIMARY KEY,link TEXT NOT NULL,acquired INTEGER NOT NULL,body BLOB NOT NULL);
                 CREATE TABLE IF NOT EXISTS news_art(link TEXT PRIMARY KEY,url TEXT);
                 CREATE TABLE IF NOT EXISTS news_setting(id INTEGER PRIMARY KEY, place TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS news_check(edition TEXT PRIMARY KEY, attempt INTEGER, success INTEGER, error TEXT);
@@ -181,9 +182,12 @@ class News:
                 continue
             try:
                 parser = Paragraphs()
-                parser.feed(fetch(link, 4_000_000).decode("utf-8", "replace"))
+                original = fetch(link, 4_000_000)
+                parser.feed(original.decode("utf-8", "replace"))
                 if parser.lines:
                     with db:
+                        db.execute("INSERT OR REPLACE INTO news_original VALUES(?,?,?,?)",(key,link,int(time()),original))
+                        db.execute("DELETE FROM news_original WHERE id NOT IN (SELECT id FROM news_story) OR id IN (SELECT id FROM (SELECT id,sum(length(body)) OVER(ORDER BY acquired DESC,id DESC) total FROM news_original) WHERE total>?)",(32*1024**2,))
                         db.execute("UPDATE news_story SET body=? WHERE id=?", ("\n\n".join(parser.lines)[:150000],key))
             except (OSError, HTTPException, ValueError):
                 continue

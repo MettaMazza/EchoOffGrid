@@ -197,12 +197,11 @@ class Wiki:
 
     @staticmethod
     def with_starter(archives):
-        if any(p.name.startswith("wikipedia_") for p in archives):
-            return list(archives)
+        existing = {p.name for p in archives}
         for folder in (STARTER, STARTER.parents[1]/"dist/reference"):
             available = sorted(folder.glob("wikipedia_*.zim"))
             if available:
-                return list(archives) + available
+                return list(archives) + [p for p in available if p.name not in existing]
         return list(archives)
 
     def page(self, book, query):
@@ -212,7 +211,7 @@ class Wiki:
         if book not in books:
             book = self.preferred
         if book not in books:
-            book = next((name for prefix in ("wikipedia_en_all_maxi_", "wikipedia_en-simple_all_maxi_", "wikipedia_en_all_")
+            book = next((name for prefix in ("wikipedia_en_all_maxi_", "wikipedia_en-simple_all_maxi_", "wikipedia_en_all_", "wikipedia_en-simple_", "wikipedia_")
                          for name in sorted(books, reverse=True) if name.startswith(prefix)), self.archives[0].stem)
         options = "".join(f'<option value="{escape(name)}"{" selected" if name == book else ""}>{escape(name)}</option>' for name in sorted(books))
         src = "/zim/search?" + urlencode({"content": book, "pattern": query}) if query else "/zim/content/" + quote(book) + "/"

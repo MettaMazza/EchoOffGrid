@@ -13,9 +13,11 @@ public class Checks extends Instrumentation {
     WebView web;
     String origin, cookie;
     Bundle results=new Bundle();
-    private boolean drawerOnly, intelOnly, historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
-    private String filmId;
-    @Override public void onCreate(Bundle args) {super.onCreate(args);drawerOnly=args!=null && "1".equals(args.getString("drawer"));intelOnly=args!=null && "1".equals(args.getString("intel"));historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
+    private boolean exportsOnly, tabsOnly, corpoOnly, casesOnly, visualsOnly, drawerOnly, intelOnly, historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
+    private String backgroundMode;
+    private String filmId, exportCase;
+    private boolean protectedLink;
+    @Override public void onCreate(Bundle args) {super.onCreate(args);backgroundMode=args==null?null:args.getString("background");protectedLink=args!=null && "1".equals(args.getString("protectedLink"));exportsOnly=args!=null && "1".equals(args.getString("exports"));tabsOnly=args!=null && "1".equals(args.getString("tabs"));corpoOnly=args!=null && "1".equals(args.getString("corpo"));exportCase=args==null?null:args.getString("exportCase");casesOnly=args!=null && "1".equals(args.getString("cases"));visualsOnly=args!=null && "1".equals(args.getString("visuals"));drawerOnly=args!=null && "1".equals(args.getString("drawer"));intelOnly=args!=null && "1".equals(args.getString("intel"));historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
     WebView locate(View view) {
         if (view instanceof WebView) return (WebView)view;
         if (view instanceof ViewGroup) {
@@ -74,6 +76,36 @@ public class Checks extends Instrumentation {
     void puzzleCheck() throws Exception {
         navigate("/library/games");
         org.json.JSONArray boards=new org.json.JSONArray(js("Array.from(document.querySelectorAll('a[href*=play]'),a=>a.href)"));
+        if(boards.length()==0){
+            String link=new org.json.JSONArray(js("Array.from(document.querySelectorAll('a.item'),a=>[a.textContent,a.pathname]).filter(a=>a[0].includes('Lights Out')).map(a=>a[1])")).getString(0);
+            navigate(link);
+            String raw=new org.json.JSONArray(js("[document.querySelector('.puzzle-frame').getAttribute('src')]")).getString(0);
+            if(!get(raw,"Switch off every light").contains("aria-pressed"))throw new IOException("Bundled board unavailable");
+            js("document.querySelector('.puzzle-frame').scrollIntoView({block:'center'})");
+            Thread.sleep(800);
+            android.graphics.Bitmap before=getUiAutomation().takeScreenshot();
+            if(before==null)throw new IOException("Game screen unavailable");
+            int tx=-1,ty=-1,original=0;
+            for(int y=100;y<before.getHeight()-80 && tx<0;y+=4){
+                for(int x=24;x<before.getWidth()-24;x+=4){
+                    int color=before.getPixel(x,y)&0xffffff;
+                    if((color==0xa9d9b7 || color==0x26372d) && (before.getPixel(x+10,y+10)&0xffffff)==color){
+                        tx=x+5;ty=y+5;original=color;break;
+                    }
+                }
+            }
+            before.recycle();
+            if(tx<0)throw new IOException("Rendered game board missing");
+            long now=android.os.SystemClock.uptimeMillis();
+            sendPointerSync(MotionEvent.obtain(now,now,MotionEvent.ACTION_DOWN,tx,ty,0));
+            sendPointerSync(MotionEvent.obtain(now,now+70,MotionEvent.ACTION_UP,tx,ty,0));
+            Thread.sleep(350);
+            android.graphics.Bitmap after=getUiAutomation().takeScreenshot();
+            int color=after.getPixel(tx,ty)&0xffffff;after.recycle();
+            if(color==original || (color!=0xa9d9b7 && color!=0x26372d))throw new IOException("Touch did not switch the rendered light");
+            results.putString("Bundled Lights Out move","PASS");
+            return;
+        }
         int ready=0;
         for(int i=0;!gamesOnly && i<boards.length();i++){
             navigate(boards.getString(i).substring(origin.length()));
@@ -121,8 +153,11 @@ public class Checks extends Instrumentation {
             Thread.sleep(100);
         }
         results.putString("decoded hover preview",String.valueOf(decoded));
-        navigate("/library/watch/Big%20Buck%20Bunny.mp4");
-        results.putString("player uses local poster",js("document.querySelector('main video').poster.startsWith(location.origin+'/poster/')"));
+        navigate("/library/watch");
+        String videoPage=new org.json.JSONArray(js("Array.from(document.querySelectorAll('a.item'),a=>[a.textContent,a.pathname]).filter(a=>a[0].includes('Big Buck Bunny')).map(a=>a[1])")).getString(0);
+        navigate(videoPage);
+        String playerLink=new org.json.JSONArray(js("[document.querySelector('a[href^=\"/player/\"]').getAttribute('href')]")).getString(0);
+        results.putString("player uses local poster",js("document.querySelector('main video').poster.startsWith(location.origin+'/')"));
         results.putString("video duration",js("document.querySelector('main video').duration"));
         results.putString("Native player controls",js("document.querySelector('main video').controls && !document.querySelector('.video-fullscreen')"));
         results.putString("Up next carousel",js("!!document.querySelector('.up-next .carousel .item')"));
@@ -141,14 +176,18 @@ public class Checks extends Instrumentation {
             navigate("/library/"+shelf);
             results.putString("Browse grid "+shelf,js("!document.querySelector('main .carousel') && !!document.querySelector('.category-grid')"));
         }
-        Intent vlc=new Intent().setClassName("dev.echooffgrid.mobile","dev.echooffgrid.mobile.Player");
-        vlc.setData(android.net.Uri.parse(origin+"/player/shows/Caminandes%2001%20-%20Llama%20Drama.ogv"));
-        vlc.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        Activity playerActivity=startActivitySync(vlc);
+        navigate(videoPage);
+        ActivityMonitor playerMonitor=addMonitor("dev.echooffgrid.mobile.Player",null,false);
+        js("document.querySelector('a[href^=\"/player/\"]').click()");
+        Activity playerActivity=playerMonitor.waitForActivityWithTimeout(10000);
+        removeMonitor(playerMonitor);
+        if(playerActivity==null)throw new IOException("Native player link failed to open");
         try {
             java.lang.reflect.Field field=playerActivity.getClass().getDeclaredField("player");
             field.setAccessible(true);
             Object nativePlayer=field.get(playerActivity);
+            if(nativePlayer==null)throw new IOException("Native player failed to initialize for "+playerLink);
+            results.putString("VLC source",playerLink);
             boolean playing=false;
             Object media=nativePlayer == null ? null : nativePlayer.getClass().getMethod("getMedia").invoke(nativePlayer);
             for(int n=0;n<150 && nativePlayer!=null;n++){
@@ -158,7 +197,10 @@ public class Checks extends Instrumentation {
                 Thread.sleep(100);
             }
             if(media!=null)media.getClass().getMethod("release").invoke(media);
-            results.putString("local VLC Ogg playback",String.valueOf(playing));
+            results.putString("VLC length",String.valueOf(nativePlayer.getClass().getMethod("getLength").invoke(nativePlayer)));
+            results.putString("VLC final state",String.valueOf(nativePlayer.getClass().getMethod("getPlayerState").invoke(nativePlayer)));
+            if(!playing)throw new IOException("VLC did not decode the local file");
+            results.putString("local VLC playback","PASS");
         } finally {runOnMainSync(()->playerActivity.finish());}
         navigate("/library");
     }
@@ -175,7 +217,7 @@ public class Checks extends Instrumentation {
     }
     android.view.accessibility.AccessibilityNodeInfo findNode(android.view.accessibility.AccessibilityNodeInfo n,String label,boolean byClass){
         if(n==null)return null;
-        String text=String.valueOf(byClass?n.getClassName():n.getText());
+        String text=String.valueOf(byClass?n.getClassName():(n.getText()!=null?n.getText():n.getContentDescription()));
         boolean pageTitle = !label.equals("DuckDuckGo") || "android.widget.TextView".contentEquals(n.getClassName());
         if(pageTitle && (byClass?text.equals(label):text.toLowerCase(java.util.Locale.ROOT).contains(label.toLowerCase(java.util.Locale.ROOT)) && (label.length()>3 || text.equalsIgnoreCase(label))))return n;
         for(int i=0;i<n.getChildCount();i++){
@@ -249,6 +291,92 @@ public class Checks extends Instrumentation {
             }
         }finally{postPrivate(fields+"&action=disconnect");}
     }
+    private void shell(String cmd)throws Exception{
+        try(android.os.ParcelFileDescriptor fd=getUiAutomation().executeShellCommand(cmd);
+            InputStream stream=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){while(stream.read()!=-1){}}
+    }
+    private org.json.JSONObject audioState()throws Exception{
+        Class<?> service=getTargetContext().getClassLoader().loadClass("dev.echooffgrid.mobile.Playback");
+        java.lang.reflect.Method method=service.getDeclaredMethod("snapshot");method.setAccessible(true);
+        org.json.JSONObject[] state={null};runOnMainSync(()->{try{state[0]=(org.json.JSONObject)method.invoke(null);}catch(Exception e){throw new RuntimeException(e);}});
+        return state[0];
+    }
+    private String firstShelf(String kind,String selector)throws Exception{
+        navigate("/library/"+kind);
+        return new org.json.JSONArray(js("Array.from(document.querySelectorAll("+org.json.JSONObject.quote(selector)+"),a=>a.pathname+a.search)")).getString(0);
+    }
+    private void backgroundChecks(String mode)throws Exception{
+        if(mode.equals("pip")){
+            String path=firstShelf("watch","a.item");navigate(path);
+            ActivityMonitor monitor=addMonitor("dev.echooffgrid.mobile.Player",null,false);
+            js("Array.from(document.querySelectorAll('a')).find(a=>a.textContent==='Picture in picture').click()");
+            Activity activity=monitor.waitForActivityWithTimeout(15000);removeMonitor(monitor);
+            if(activity==null)throw new IOException("Native player did not open");
+            try{
+                for(int n=0;n<120&&!activity.isInPictureInPictureMode();n++)Thread.sleep(100);
+                if(!activity.isInPictureInPictureMode())throw new IOException("Not in PiP");
+                java.lang.reflect.Field field=activity.getClass().getDeclaredField("player");field.setAccessible(true);
+                Object player=field.get(activity);
+                java.lang.reflect.Method clock=player.getClass().getMethod("getTime");
+                long before=(Long)clock.invoke(player);Thread.sleep(1200);long after=(Long)clock.invoke(player);
+                if(after<=before)throw new IOException("PiP playback did not advance: "+before+" to "+after);
+                results.putString("Native PiP",path+" · "+before+" to "+after+" ms");
+            }finally{runOnMainSync(activity::finish);}
+            return;
+        }
+        boolean book=mode.equals("book"),download=mode.equals("download");
+        File saved=null;
+        String path="";
+        String bookMarker="SHAKESPEARE";
+        org.json.JSONObject before=new org.json.JSONObject();
+        if(download){
+            String id="75974d82939c68e2d9df886f2678b7060197f7ba1bfbae4188351d11a5e39132";
+            File content=new File(getTargetContext().getExternalFilesDir(null),"Workstation/Content");
+            String query="Complete+Works+William+Shakespeare";
+            if(new File(content,id+".txt").exists()){
+                id="9c7416c8b818ba80d4a0e927e0f7b2f9fc63a818b7817d8cd7317258519a2ffb";
+                bookMarker="MOBY";
+                query="Moby+Dick+Melville";
+            }
+            saved=new File(content,id+".txt");
+            if(saved.exists())throw new IOException("Test titles already installed. Use a clean test library.");
+            get("/discover?kind=Books&provider=Project+Gutenberg&q="+query,"Project Gutenberg");
+            navigate("/discover/item/"+id);
+            js("document.querySelector('form[action=\"/discover/add\"] button').click()");
+        }else{
+            path=book?firstShelf("listen","a.item[href^='/library/listen/']"):"/dictionary?q=fern";
+            navigate(path);
+            if(book)js("Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Play audiobook').click()");
+            else js("document.querySelector('#read-all').click()");
+            for(int n=0;n<300;n++){before=audioState();if(before.optLong("position")>300 && before.optBoolean("ready"))break;Thread.sleep(200);}
+            if(before.optLong("position")<=300)throw new IOException("Playback failed to start "+path+" "+before);
+        }
+        shell("am start -a android.settings.SETTINGS");
+
+        shell("input keyevent KEYCODE_SLEEP");
+        android.os.PowerManager power=getTargetContext().getSystemService(android.os.PowerManager.class);
+        if(power.isInteractive())Thread.sleep(1500);
+        if(power.isInteractive())throw new IOException("Screen did not lock");
+        long bytes=saved==null?0:saved.length();long atLock=audioState().optLong("position");
+        Thread.sleep(16000);
+        org.json.JSONObject after=audioState();
+        if(!download){
+            if(power.isInteractive() || after.optBoolean("paused") || after.optLong("position")<=atLock+1000)
+                throw new IOException("Audio failed screen-off check "+after);
+            if(!book && after.optInt("part")==before.optInt("part"))throw new IOException("Narration did not advance to another passage");
+            results.putString(mode+" background playback",path+" · "+atLock+" to "+after.getLong("position")+" ms · part "+after.optInt("part"));
+        }
+        if(saved!=null){
+            for(int n=0;n<180 && !saved.exists();n++)Thread.sleep(500);
+            if(!saved.exists())throw new IOException("Download did not complete "+get("/downloads","Downloads").replaceAll("<[^>]+>"," ").replaceAll("\\s+"," ").substring(0,400));
+            if(power.isInteractive())throw new IOException("Display woke before download verification");
+            if(bytes>0)throw new IOException("Transfer finished before screen lock");
+            String text=new String(java.nio.file.Files.readAllBytes(saved.toPath()),"UTF-8");
+            if(!text.toUpperCase(java.util.Locale.ROOT).contains(bookMarker) || !text.toUpperCase(java.util.Locale.ROOT).contains("END OF THE PROJECT GUTENBERG"))throw new IOException("Invalid Gutenberg download");
+            results.putString("Completed locked download",saved.length()+" bytes, "+bookMarker+", verified book and end marker");
+        }
+    }
+
     @Override public void onStart() {
         try{
 
@@ -258,6 +386,7 @@ public class Checks extends Instrumentation {
             Activity app=monitor.waitForActivityWithTimeout(20000);
             removeMonitor(monitor);
             if(app==null)throw new IOException("The phone did not foreground EchoOffGrid within 20 seconds");
+            runOnMainSync(()->app.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
             for(int n=0;n<300 && cookie==null;n++){
                 runOnMainSync(()->{
                     web=locate(app.getWindow().getDecorView());
@@ -270,6 +399,151 @@ public class Checks extends Instrumentation {
                 Thread.sleep(100);
             }
             if(cookie==null) throw new IOException("Local dashboard did not open");
+            if(backgroundMode!=null){backgroundChecks(backgroundMode);finish(Activity.RESULT_OK,results);return;}
+            if(protectedLink){
+                navigate("/news");
+                js("(()=>{const a=document.createElement('a');a.href='https://check.torproject.org/';a.target='_blank';a.textContent='Publisher link';document.querySelector('main').append(a);a.click();})()");
+                awaitNode("Congratulations",false);
+                results.putString("Protected external link","PASS · clicked from News and verified Tor exit");
+                awaitNode("Done",false).performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+                finish(Activity.RESULT_OK,results);return;
+            }
+            if(exportsOnly){
+                for(String[] item:new String[][]{{"/archive","/archive/backup","EchoOffGrid","SQLite format 3"},{"/evidence","/evidence.csv","EchoOffGrid-evidence","event_at_utc"}}){
+                    navigate(item[0]);
+                    android.net.Uri downloads=android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+                    android.content.ContentResolver resolver=getTargetContext().getContentResolver();
+                    long last=0;
+                    try(android.database.Cursor c=resolver.query(downloads,new String[]{"_id"},null,null,"_id DESC")){
+                        if(c!=null && c.moveToFirst())last=c.getLong(0);
+                    }
+                    js("document.querySelector('main a[href^="+org.json.JSONObject.quote(item[1])+"]').click()");
+                    boolean valid=false;
+                    for(int i=0;i<300 && !valid;i++){
+                        try(android.database.Cursor c=resolver.query(downloads,new String[]{"_id"},"_id>? AND _display_name LIKE ? AND is_pending=0",new String[]{String.valueOf(last),item[2]+"%"},"_id DESC")){
+                            if(c!=null && c.moveToFirst()){
+                                try(InputStream in=resolver.openInputStream(android.content.ContentUris.withAppendedId(downloads,c.getLong(0)))){
+                                    DataInputStream data=new DataInputStream(in);byte[] head=new byte[item[3].length()];data.readFully(head);
+                                    valid=item[3].equals(new String(head,"UTF-8"));
+                                }
+                            }
+                        }
+                        if(!valid)Thread.sleep(100);
+                    }
+                    if(!valid)throw new IOException("Download missing or incorrect: "+item[1]);
+                    results.putString(item[1],"PASS · file written in Downloads and header matches");
+                }
+                finish(Activity.RESULT_OK,results);return;
+            }
+            if(tabsOnly){
+                navigate("/");
+                String[] pages={"/","/library","/news","/openintel","/opengov","/opencorpo","/history","/wikipedia","/dictionary","/maps","/downloads","/private-browser","/echolite","/devices"};
+                for(String path:pages){
+                    String target=org.json.JSONObject.quote(path);
+                    js("document.querySelector('.drawer-trigger').click();document.querySelector('#section-drawer a[href='+JSON.stringify("+target+")+']').click()");
+                    if(path.equals("/echolite")){
+                        waitForPackage("dev.echolite.android");
+                        sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
+                        waitForPackage("dev.echooffgrid.mobile");
+                    }else{
+                        boolean rendered=false;
+                        for(int n=0;n<300 && !rendered;n++){
+                            boolean[] loaded={false};
+                            runOnMainSync(()->loaded[0]=(origin+path).equals(web.getUrl()) && web.getProgress()==100);
+                            if(!loaded[0]){Thread.sleep(150);continue;}
+                            rendered="true".equals(js("location.pathname==="+target+" && document.readyState==='complete' && !!document.querySelector('main')?.innerText.trim() && document.documentElement.scrollWidth<=innerWidth+1"));
+                            if(!rendered)Thread.sleep(150);
+                        }
+                        if(!rendered)throw new IOException("Tab failed to render or overflowed: "+path+" "+js("[location.pathname,document.readyState,document.documentElement.scrollWidth,innerWidth]"));
+                    }
+                    results.putString("Tab "+path,"PASS");
+                }
+                for(String path:new String[]{"/evidence?source=HackRF","/evidence?source=ScotMesh","/evidence","/evidence.csv?checks=1","/wiki-progress","/home-status","/archive","/library/documents"})get(path,"");
+                results.putString("Devices","PASS · receiver, mesh, comparisons and CSV");
+                finish(Activity.RESULT_OK,results);return;
+            }
+            if(corpoOnly){
+                navigate("/opencorpo?country=ownership");
+                get("/opencorpo?country=ownership","beneficial ownership");
+                get("/opencorpo?country=royal","Royal House of Spain");
+                get("/opencorpo?source=local&q=Berkshire","Read offline");
+                navigate("/opencorpo?source=gleif&q=Siemens");
+                String key=new org.json.JSONArray(js("Array.from(document.querySelectorAll('.gov-card input[name=item],.gov-card a[href]'),e=>e.value||e.pathname.split('/').pop())")).getString(0);
+                js("document.querySelector('.gov-card button')?.click()");
+                boolean saved=false;
+                for(int i=0;i<60 && !saved;i++){
+                    saved=get("/library/documents","Lend-Lease Act").contains(key);
+                    if(!saved)Thread.sleep(500);
+                }
+                if(!saved)throw new IOException("Entity record missing from Documents");
+                navigate("/content/"+key);
+                get("/content/"+key,"Legal name");
+                get("/content-file/"+key,"legalName");
+                results.putString("OpenCorpo","PASS · live lookup, save, shelf, local reader and source JSON");
+                finish(Activity.RESULT_OK,results);return;
+            }
+            if(exportCase!=null){
+                navigate("/openintel");
+                org.json.JSONObject list=new org.json.JSONObject(get("/openintel/cases","cases"));
+                org.json.JSONArray entries=list.getJSONArray("cases");
+                int id=0;
+                for(int i=0;i<entries.length();i++){
+                    org.json.JSONObject row=entries.getJSONObject(i);
+                    if(exportCase.equals(row.getString("title")))id=row.getInt("id");
+                }
+                if(id==0)throw new IOException("Requested case missing");
+                HttpURLConnection c=(HttpURLConnection)new URL(origin+"/openintel/cases/"+id+"/export").openConnection();
+                c.setRequestProperty("Cookie",cookie);
+                try(InputStream in=c.getInputStream(); FileOutputStream out=new FileOutputStream(new File(getTargetContext().getExternalFilesDir(null),"sync-proof.zip"))){
+                    byte[] buf=new byte[8192];
+                    for(int n;(n=in.read(buf))!=-1;)out.write(buf,0,n);
+                }finally{c.disconnect();}
+                results.putString("export",exportCase);
+                finish(Activity.RESULT_OK,results);return;
+            }
+            if(casesOnly){
+                navigate("/openintel");
+                try(java.util.Scanner script=new java.util.Scanner(getContext().getAssets().open("cases.js"),"UTF-8")){
+                    js(script.useDelimiter("\\A").next());
+                }
+                for(int n=0;n<900 && !"true".equals(js("!!window.caseQA"));n++)Thread.sleep(100);
+                String result=js("window.caseQA");
+                org.json.JSONObject proof=new org.json.JSONObject(result);
+                if(proof.has("error"))throw new IOException(proof.getString("error"));
+                String name="EchoOffGrid-case-"+proof.getString("owner")+".zip";
+                boolean saved=false;
+                for(int n=0;n<150 && !saved;n++){
+                    try(android.database.Cursor files=getTargetContext().getContentResolver().query(
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,new String[]{"_size"},
+                        "_display_name=? AND is_pending=0",new String[]{name},null)){
+                        saved=files!=null && files.moveToFirst() && files.getLong(0)>0;
+                    }
+                    if(!saved)Thread.sleep(100);
+                }
+                if(!saved)throw new IOException("ZIP did not finish writing to Downloads");
+                results.putString("caseProof",result);
+                finish(Activity.RESULT_OK,results);return;
+            }
+            if(visualsOnly){
+                navigate("/openintel?region=aberdeen");
+                for(int i=0;i<100 && !"true".equals(js("!!document.querySelector('.visual-card img')?.naturalWidth"));i++)Thread.sleep(100);
+                if(!"true".equals(js("document.querySelectorAll('.visual-card').length>3 && document.querySelector('.visual-card img')?.naturalWidth>100 && document.documentElement.scrollWidth<=innerWidth+1")))throw new IOException("Offline gallery failed");
+                historyScreenshot("openintel-visual-gallery");
+                js("document.querySelector('.visual-card').click()");
+                for(int i=0;i<220 && !"true".equals(js("!!document.querySelector('[data-overlay]')"));i++)Thread.sleep(100);
+                if(!"true".equals(js("document.querySelector('#visual-content img')?.naturalWidth===768 && !!document.querySelector('[data-overlay]')")))throw new IOException("Actual NASA frame unavailable: "+js("document.querySelector('#visual-content output')?.textContent"));
+                js("document.querySelector('[data-overlay]').click()");
+                Thread.sleep(600);
+                if(!"true".equals(js("document.querySelector('#intel-map').contentDocument.querySelector('#remove-overlay').hidden===false")))throw new IOException("Satellite overlay failed");
+                historyScreenshot("openintel-satellite-overlay");
+                js("document.querySelector('#orbit-explorer').open=true");
+                for(int i=0;i<60 && !"true".equals(js("!!document.querySelector('#orbit-choice option')"));i++)Thread.sleep(100);
+                js("let f=document.querySelector('#orbit-find'); f.value='25544'; f.dispatchEvent(new Event('input')); document.querySelector('#orbit-form').requestSubmit()");
+                for(int i=0;i<100 && !"true".equals(js("!!document.querySelector('#intel-map').contentDocument.body.dataset.orbitReady"));i++)Thread.sleep(100);
+                if(!"true".equals(js("!!document.querySelector('#intel-map').contentDocument.body.dataset.orbitReady && document.querySelector('#orbit-detail').textContent.includes('elements dated')")))throw new IOException("ISS ground track failed: "+js("document.querySelector('#orbit-detail').textContent"));
+                results.putString("Visuals","PASS · bundled gallery, publisher image, satellite overlay, mobile layout, ISS ground track");
+                finish(Activity.RESULT_OK,results);return;
+            }
             if(drawerOnly){
                 navigate("/openintel?view=sample");
                 js("document.querySelector('.drawer-trigger').click()");
@@ -390,11 +664,11 @@ public class Checks extends Instrumentation {
             if(gamesOnly){puzzleCheck();finish(Activity.RESULT_OK,results);return;}
             String home=get("/","<h2>Discover</h2>");
             results.putString("home","PASS");
-            check("/library","/poster/watch/");
+            check("/library","/library/watch");
             check("/library/books","Dracula");
-            check("/library/listen","Sherlock");
+            check("/library/listen","A Scandal in Bohemia");
             check("/library/shows","Caminandes");
-            check("/library/games","Blackbox");
+            check("/library/games","Lights Out");
             check("/library/software","Software");
             String newsroom=get("/news","rail news-grid");
             Matcher article=Pattern.compile("href=\"(/news/[a-zA-Z0-9_-]+)\"").matcher(newsroom);
@@ -404,16 +678,21 @@ public class Checks extends Instrumentation {
             check("/downloads","Downloads");
             check("/devices","Devices");
             check("/dictionary?q=dog","Canidae");
-            check("/atlas/UK.pmtiles","PMTiles");
+            navigate("/atlas/");
+            js("document.querySelector('[data-map=UK]').click()");
+            for(int i=0;i<100 && !"true".equals(js("document.querySelector('[data-map=UK]').getAttribute('aria-pressed')==='true'"));i++)Thread.sleep(120);
+            results.putString("UK atlas view",js("document.querySelector('#status').textContent"));
             check("/atlas/World.pmtiles","PMTiles");
             check("/atlas/vendor/maplibre-gl.js","MapLibre");
             String wiki=get("/wikipedia?q=Aberdeen","/zim/search?");
             Matcher link=Pattern.compile("src=\"(/zim/search[^\"]+)").matcher(wiki);
             if(link.find()){
                 String route=link.group(1).replace("&amp;","&");
+                if(!route.contains("content=wikipedia_"))throw new IOException("Wikipedia search used another reference collection");
                 check(route,"Aberdeen");
                 if(!"PASS".equals(results.getString(route))){Thread.sleep(2000);check(route,"Aberdeen");}
             }
+            if(!wiki.contains("src=\"/zim/search"))throw new IOException("Wikipedia search frame missing");
             Matcher token=Pattern.compile("data-token=\"([^\"]+)\"").matcher(home);
             if(!token.find())throw new IOException("Reader token missing");
             HttpURLConnection c=(HttpURLConnection)new URL(origin+"/narrate").openConnection();

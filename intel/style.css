@@ -3,3 +3,19 @@
 
 #openintel .intel-tabs button[aria-pressed=false],#openintel .intel-layers button{background:#222e34;color:#c3dccc}
 #openintel .intel-layers button[aria-pressed=false]{background:transparent;color:#a5b0b2}
+
+#visual-browser{margin:1rem 0 1.4rem}.visual-heading,.visual-controls,.visual-pages,.visual-actions{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.visual-heading{justify-content:space-between}.visual-heading h3{margin:.4rem 0}.visual-controls{margin:.65rem 0}.visual-controls input[type=search]{flex:1;min-width:12rem}
+#visual-cards{display:grid;grid-auto-flow:column;grid-auto-columns:clamp(185px,24%,280px);gap:.65rem;overflow-x:auto;scroll-snap-type:x proximity;padding:3px 0 .5rem}
+#visual-cards .visual-card{scroll-snap-align:start;display:flex;flex-direction:column;align-items:flex-start;gap:.35rem;min-width:0;overflow-wrap:anywhere;background:#1b242a;border:1px solid #3b4b49;color:#d9ebdf;text-align:left;padding:.65rem}
+.visual-art{display:grid;place-items:center;width:100%;aspect-ratio:1.8;background:#172521;color:#a7ccba;font-size:.85rem}.visual-art img{width:100%;height:100%;min-height:0;object-fit:cover}.visual-pages{justify-content:space-between}.visual-pages output,#visual-detail output{font-size:.85rem}
+#visual-detail{background:#182126;color:#d8eadd;border:1px solid #668d79;padding:1rem;width:min(48rem,92vw);box-sizing:border-box;max-height:86vh;overflow:auto}#visual-detail::backdrop{background:#080f12dc}
+#visual-close{float:right}#visual-content h3{margin:.3rem 0}#visual-content img,#visual-content video{display:block;width:100%;max-height:56vh;object-fit:contain;background:#11181a}#visual-content output{display:block;margin:.5rem 0}.visual-actions{margin:.6rem 0}
+
+#case-workspace form{display:flex;align-items:end;flex-wrap:wrap;gap:.7rem;margin:1rem 0}
+#case-workspace label{display:grid;gap:.3rem}
+#case-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:.75rem}
+#case-results article{display:grid;align-content:start;gap:.5rem;padding:1rem;background:var(--panel,#1c2228);border:1px solid #405348;overflow-wrap:anywhere}
+#case-results article :is(h4,p){margin:0}
+#case-results button{justify-self:start}
+#case-status{display:block;margin:.8rem 0}
+#case-exhibits details{overflow-wrap:anywhere;padding:.5rem 0}

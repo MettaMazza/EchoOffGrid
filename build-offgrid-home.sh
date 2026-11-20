@@ -26,7 +26,7 @@ if [[ "$name" == "EchoOffGrid" ]]; then
         -c 'Set :CFBundleName EchoOffGrid' \
         -c 'Delete :NSDesktopFolderUsageDescription' "$contents/Info.plist"
 fi
-for file in LICENSE THIRD_PARTY.md archive.py discovery.py catalog.json dashboard.py private_browser.py browser_proxy.py media_previews.py history_view.py govports.py government-portals.json opengov.py lend-lease-1941.pdf personal_library.py puzzle-mobile.html news.py publishers.py library_sources.py spotlight.py discover-starters.json world-population.json narrator.py reader.js workspace.css workspace.js atlas.html evidence.py kit_library.py references.py wiki_editions.py reading-words.txt puzzles.json; do
+for file in LICENSE THIRD_PARTY.md archive.py discovery.py catalog.json dashboard.py private_browser.py browser_proxy.py media_previews.py history_view.py govports.py government-portals.json opengov.py opencorpo.py corporate-registers.json corporate-starter.json lend-lease-1941.pdf personal_library.py puzzle-mobile.html news.py publishers.py library_sources.py spotlight.py discover-starters.json world-population.json narrator.py reader.js workspace.css workspace.js atlas.html evidence.py kit_library.py references.py wiki_editions.py reading-words.txt puzzles.json; do
     cp "$project/$file" "$resources/$file"
 done
 cp "$project/android/storage_policy.py" "$resources/"

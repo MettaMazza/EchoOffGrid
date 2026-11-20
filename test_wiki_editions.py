@@ -28,6 +28,15 @@ class EditionTests(unittest.TestCase):
         self.name = "wikipedia_en_all_maxi_test.zim"
         self.part = self.folder / (self.name + ".part")
 
+    def test_default_and_starter_search_choose_wikipedia_with_other_archives(self):
+        other = self.folder / "appropedia_en_mini_2026.zim"
+        starter = self.folder / "wikipedia_en-simple_all_mini_2026.zim"
+        self.wiki.archives = [other, starter]
+        self.assertIn("content=" + starter.stem, self.wiki.page("", "Aberdeen"))
+        self.manager.select("starter")
+        self.assertEqual(self.wiki.preferred, starter.stem)
+        self.assertIn("content=" + other.stem, self.wiki.page(other.stem, "Aberdeen"))
+
     def test_resume_verify_register_and_prefer(self):
         self.part.write_bytes(b"abcd")
         with patch("wiki_editions.urlopen", return_value=Response(b"ef", "bytes 4-5/6")) as fetch:

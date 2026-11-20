@@ -252,3 +252,6 @@ button.workstation-back:hover,button.workstation-back:focus-visible{background:#
  .echo-shortcut svg{width:32px;height:32px;pointer-events:none}
  .echo-shortcut:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
 }
+
+.phone-vpn-toggle {display:inline-flex;align-items:center;min-height:36px;border:1px solid currentColor;border-radius:18px;padding:0 .75rem;font-size:.82rem;white-space:normal;text-decoration:none;}
+.phone-vpn-toggle[aria-checked=true] {background:#214334;color:#b5f5ca;}

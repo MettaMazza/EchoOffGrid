@@ -56,6 +56,7 @@ ditto -c -k --keepParent "$template" "$dest/companion-runtime.zip"
 # Remove it only from the release copy, before sealing the bundle.
 find "$output/EchoOffGrid.app/Contents/Resources/PythonRuntime" "$dest" -type f -name '*.pyc' -delete
 codesign --force --sign "${ECHO_CODESIGN_IDENTITY:--}" "$output/EchoOffGrid.app"
+codesign --verify --deep --strict -R='anchor apple generic and identifier "org.videolan.vlc" and certificate leaf[subject.OU] = "75GAHG3SZQ"' "$output/EchoOffGrid.app/Contents/Helpers/VLC.app"
 codesign --verify --deep --strict "$output/EchoOffGrid.app"
 mkdir "$stage/payload"
 ditto "$output/EchoOffGrid.app" "$stage/payload/EchoOffGrid.app"

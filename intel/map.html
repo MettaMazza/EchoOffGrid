@@ -2,7 +2,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' blob: data:; worker-src blob:">
 <link rel="stylesheet" href="vendor/maplibre-gl.css"><style>
 html,body,#map{margin:0;height:100%;background:#16252e;color:#d5f5df;font:14px system-ui}#note{position:absolute;left:8px;bottom:20px;background:#14201e;color:#caf4dc}body .maplibregl-ctrl-attrib{font-size:10px}
-</style><title>OpenIntel observation map</title><div id="map"></div><output id="note" role="status"></output>
+</style><title>OpenIntel observation map</title><div id="map"></div><button id="remove-overlay" hidden style="position:absolute;left:8px;top:8px">Hide satellite image</button><output id="note" role="status"></output>
 <script src="vendor/maplibre-gl.js"></script><script src="vendor/pmtiles.js"></script><script src="vendor/basemaps.js"></script><script>
 const empty={type:'FeatureCollection',features:[]};
 let map, latest, region;
@@ -38,6 +38,39 @@ function render(){
 }
 addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==parent)return;
  if(e.data.openintel==='view'){latest=e.data.value;render()}
+ if(e.data.openintel==='orbit'&&map&&map.getLayer('reports')){
+  const r=e.data.value;const segments=[[]];
+  for(const point of r.trail){
+   const last=segments[segments.length-1];
+   if(last.length&&Math.abs(last[last.length-1][0]-point[0])>180)segments.push([]);
+   segments[segments.length-1].push(point)
+  }
+  const data={type:'FeatureCollection',features:[
+   {type:'Feature',geometry:{type:'MultiLineString',coordinates:segments.filter(s=>s.length>1)},properties:{}},
+   {type:'Feature',geometry:{type:'Point',coordinates:[r.lon,r.lat]},properties:{}}
+  ]};
+  if(map.getSource('chosen-orbit'))map.getSource('chosen-orbit').setData(data);
+  else{
+   map.addSource('chosen-orbit',{type:'geojson',data});
+   map.addLayer({id:'orbit-path',type:'line',source:'chosen-orbit',filter:['==',['geometry-type'],'LineString'],paint:{'line-color':'#eab5fc','line-width':3}});
+   map.addLayer({id:'orbit-position',type:'circle',source:'chosen-orbit',filter:['==',['geometry-type'],'Point'],paint:{'circle-radius':8,'circle-color':'#eab5fc','circle-stroke-width':2,'circle-stroke-color':'#282133'}});
+  }
+  map.jumpTo({center:[r.lon,r.lat],zoom:1.5});document.body.dataset.orbitReady=String(r.object||r.id);
+ }
+ if(e.data.openintel==='overlay'&&map&&map.getLayer('reports')){
+  const item=e.data.value;
+  if(!/^\/openintel\/image\/[a-f0-9]{64}$/.test(item.url)||!Array.isArray(item.bounds))return;
+  const [w,s,east,n]=item.bounds;
+  document.querySelector('#remove-overlay').onclick=()=>{
+   if(map.getLayer('selected-image'))map.removeLayer('selected-image');
+   if(map.getSource('selected-image'))map.removeSource('selected-image');
+   document.querySelector('#remove-overlay').hidden=true;
+  };
+  document.querySelector('#remove-overlay').onclick();
+  map.addSource('selected-image',{type:'image',url:item.url,coordinates:[[w,n],[east,n],[east,s],[w,s]]});
+  map.addLayer({id:'selected-image',type:'raster',source:'selected-image',paint:{'raster-opacity':0.87}},'trails');
+  map.fitBounds([[w,s],[east,n]],{padding:16,duration:0});document.querySelector('#remove-overlay').hidden=false
+ }
  if(e.data.openintel==='locate'&&map){map.easeTo({center:e.data.value,zoom:Math.max(5,map.getZoom())})}
 });
 try{

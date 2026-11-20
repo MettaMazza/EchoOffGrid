@@ -34,7 +34,8 @@ In the development builds, Home offers an illustrated Wikipedia edition on first
 | **Reference and maps** | Browse Wikipedia, look up highlighted words, explore a map and listen with the packaged English narrator. Map detail depends on the tile archives installed. |
 | **History** | Zoom from eras to individual years, search the offline chronology and compare historical interpretations. [Sources and scope](vendor/history/NOTICE.md) |
 | **OpenGov** | Browse national portals for 197 jurisdictions, search connected catalogues and save publications to Documents. |
-| **Private Browser** | Open DuckDuckGo and browse HTTPS sites through Tor in a separate in-app view while online. Other apps use their existing connection. |
+| **OpenCorpo** | Search companies, funds and US foundations. Browse 233 jurisdictions and directories for ownership disclosures, capital and royal accounts. Save records to Library → Documents for offline reading. |
+| **Private Browser** | External web links open through Tor. An optional Android phone VPN extends Tor routing to the native browser and other apps while EchoOffGrid is in the background. |
 | **EchoLite** | The Mac hosts the supplied EchoLite interface. Android opens the independently installed EchoLite app and Back returns to EchoOffGrid. EchoLite owns its models and settings. |
 | **Devices** | Pair a Mac and phone over USB and sync compatible content over USB or Wi-Fi. Import optional radio logs and compare local observations with public ScotMesh reports. |
 

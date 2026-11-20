@@ -458,47 +458,6 @@ final class LocalServers {
 }
 
 #if ECHO_STANDALONE
-final class IntelCameraPanel: NSView, WKNavigationDelegate {
-    private let player: WKWebView
-
-    init(parent: NSView) {
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent()
-        config.mediaTypesRequiringUserActionForPlayback = []
-        player = WKWebView(frame: .zero, configuration: config)
-        super.init(frame: parent.bounds)
-        autoresizingMask = [.width, .height]
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-        let close = NSButton(title: "‹ Back to OpenIntel", target: self, action: #selector(dismiss))
-        for view in [close as NSView, player] { view.translatesAutoresizingMaskIntoConstraints = false; addSubview(view) }
-        NSLayoutConstraint.activate([
-            close.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            close.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            player.topAnchor.constraint(equalTo: close.bottomAnchor, constant: 8),
-            player.leadingAnchor.constraint(equalTo: leadingAnchor), player.trailingAnchor.constraint(equalTo: trailingAnchor),
-            player.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
-        parent.addSubview(self)
-        player.navigationDelegate = self
-        player.load(URLRequest(url: URL(string: "https://www.mauirealestate.net/live/embed.html")!))
-    }
-
-    required init?(coder: NSCoder) { fatalError("Use init(parent:)") }
-
-    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
-                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        let approved = ["www.mauirealestate.net", "live5.brownrice.com", "player.brownrice.com"]
-        let url = action.request.url
-        decisionHandler(url?.scheme == "https" && approved.contains(url?.host ?? "") ? .allow : .cancel)
-    }
-
-    @objc private func dismiss() {
-        player.stopLoading()
-        removeFromSuperview()
-    }
-}
-
 @available(macOS 14.0, *)
 final class PrivateBrowserPanel:NSView, WKNavigationDelegate {
     let tab:WKWebView
@@ -506,7 +465,7 @@ final class PrivateBrowserPanel:NSView, WKNavigationDelegate {
     let progress=NSTextField(labelWithString:"")
     let back=NSButton(title:"‹ Back",target:nil,action:nil)
     let next=NSButton(title:"Forward ›",target:nil,action:nil)
-    init(port:UInt16) {
+    init(port:UInt16, destination:String) {
         let config=WKWebViewConfiguration()
         let store=WKWebsiteDataStore.nonPersistent()
         let endpoint=NWEndpoint.hostPort(host:"127.0.0.1",port:NWEndpoint.Port(rawValue:port)!)
@@ -530,7 +489,7 @@ final class PrivateBrowserPanel:NSView, WKNavigationDelegate {
         let bar=NSStackView(views:[back,next,addressField,go,close])
         for child in [bar,progress,tab] as [NSView]{addSubview(child);child.translatesAutoresizingMaskIntoConstraints=false}
         NSLayoutConstraint.activate([bar.leadingAnchor.constraint(equalTo:leadingAnchor,constant:10),bar.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-10),bar.topAnchor.constraint(equalTo:topAnchor,constant:8),progress.topAnchor.constraint(equalTo:bar.bottomAnchor,constant:3),progress.leadingAnchor.constraint(equalTo:bar.leadingAnchor),tab.topAnchor.constraint(equalTo:progress.bottomAnchor,constant:4),tab.leadingAnchor.constraint(equalTo:leadingAnchor),tab.trailingAnchor.constraint(equalTo:trailingAnchor),tab.bottomAnchor.constraint(equalTo:bottomAnchor)])
-        addressField.stringValue="https://duckduckgo.com/";openAddress()
+        addressField.stringValue=destination;openAddress()
     }
     required init?(coder:NSCoder){fatalError()}
     @objc func done(){tab.stopLoading();removeFromSuperview()}
@@ -556,6 +515,7 @@ struct WorkspaceWebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        if #available(macOS 14.0, *) { configuration.applicationNameForUserAgent = "EchoOffGrid/Mac" }
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.userContentController.addScriptMessageHandler(context.coordinator, contentWorld: .page, name: "pdfText")
@@ -690,21 +650,18 @@ struct WorkspaceWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             let url = action.request.url
-            if let url, url.scheme=="https", action.navigationType == .linkActivated,
-               action.sourceFrame.isMainFrame, let current=webView.url, current.host==address.host,
-               current.port==address.port, ["/opengov","/opengov/portal","/openintel"].contains(current.path) {
+            if let url, ["http","https"].contains(url.scheme ?? ""),
+               (url.host != address.host || url.port != address.port || url.scheme != address.scheme),
+               action.navigationType == .linkActivated {
                 decisionHandler(.cancel)
-                NSWorkspace.shared.open(url)
+                var route=URLComponents(url:address,resolvingAgainstBaseURL:false)!
+                route.path="/private-browser"
+                route.queryItems=[URLQueryItem(name:"to",value:url.absoluteString)]
+                if let destination=route.url { webView.load(URLRequest(url:destination)) }
                 return
             }
             guard url?.scheme == "http", url?.host == address.host, url?.port == address.port else {
                 decisionHandler(.cancel)
-                return
-            }
-            if url?.path == "/openintel/camera" {
-                decisionHandler(.cancel)
-                if action.navigationType == .linkActivated, action.sourceFrame.isMainFrame,
-                   webView.url?.path == "/openintel" { _ = IntelCameraPanel(parent: webView) }
                 return
             }
             if let url,url.path=="/private-open" {
@@ -712,7 +669,8 @@ struct WorkspaceWebView: NSViewRepresentable {
                 guard #available(macOS 14.0,*),action.sourceFrame.isMainFrame, webView.url?.path=="/private-browser", action.sourceFrame.securityOrigin.host==address.host,
                       let raw=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems?.first(where:{$0.name=="port"})?.value,
                       let port=UInt16(raw),port>1023 else{return}
-                let panel=PrivateBrowserPanel(port:port)
+                let destination=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems?.first(where:{$0.name=="url"})?.value ?? "https://duckduckgo.com/"
+                let panel=PrivateBrowserPanel(port:port,destination:destination)
                 panel.translatesAutoresizingMaskIntoConstraints=false
                 webView.addSubview(panel)
                 NSLayoutConstraint.activate([panel.leadingAnchor.constraint(equalTo:webView.leadingAnchor),panel.trailingAnchor.constraint(equalTo:webView.trailingAnchor),panel.topAnchor.constraint(equalTo:webView.topAnchor),panel.bottomAnchor.constraint(equalTo:webView.bottomAnchor)])
@@ -762,7 +720,7 @@ struct WorkspaceWebView: NSViewRepresentable {
                 let bookmark = UserDefaults.standard.data(forKey: "echoOffGridKitBookmark")
                 let kit = bookmark.flatMap { try? URL(resolvingBookmarkData: $0, options: .withoutUI, relativeTo: nil, bookmarkDataIsStale: &stale) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/OffGrid/OffGrid Kit")
                 let apps = [Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/VLC.app"), kit.appendingPathComponent("Apps/VLC.app"), URL(fileURLWithPath: "/Applications/VLC.app")]
-                if !apps.contains(where: { EchoPlayMedia(webView, stream, $0) }) {
+                if !apps.contains(where: { EchoPlayMedia(webView.superview ?? webView, stream, $0) }) {
                     let alert = NSAlert()
                     alert.messageText = "The video player needs VLC."
                     alert.informativeText = "Install the signed VideoLAN VLC app in Applications or your kit’s Apps folder."

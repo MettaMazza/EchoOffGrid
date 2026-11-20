@@ -15,6 +15,15 @@ def merge(local, snapshot):
             for table in ("evidence", "discovery_page", "gutenberg", "intel_saved"):
                 if table in tables & local_tables:
                     dst.execute(f"INSERT OR IGNORE INTO main.{table} SELECT * FROM peer.{table}")
+            if {"case_identity","investigation","exhibit_blob","exhibit"} <= tables & local_tables:
+                for ident,title in dst.execute("SELECT u.uuid,c.title FROM peer.case_identity u JOIN peer.investigation c ON c.id=u.owner"):
+                    if not dst.execute("SELECT 1 FROM main.case_identity WHERE uuid=?",(ident,)).fetchone():
+                        owner=dst.execute("INSERT INTO main.investigation(title) VALUES(?)",(title,)).lastrowid
+                        dst.execute("INSERT INTO main.case_identity VALUES(?,?)",(owner,ident))
+                dst.execute("INSERT OR IGNORE INTO main.exhibit_blob SELECT * FROM peer.exhibit_blob")
+                dst.execute("""INSERT OR IGNORE INTO main.exhibit(owner,citation,hash)
+                    SELECT l.owner,e.citation,e.hash FROM peer.exhibit e JOIN peer.case_identity p ON p.owner=e.owner
+                    JOIN main.case_identity l ON l.uuid=p.uuid""")
             if "discovery_item" in tables & local_tables:
                 dst.execute("""INSERT OR IGNORE INTO discovery_item(id,kind,title,preview,rights,url,ext,provider,filename)
                     SELECT id,kind,title,preview,rights,url,ext,provider,CASE WHEN has_file(filename) THEN filename END
@@ -59,7 +68,7 @@ def revision(path):
     digest = hashlib.sha256()
     with closing(sqlite3.connect(Path(path).resolve().as_uri()+"?mode=ro",uri=True)) as db:
         tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for table,columns in (("intel_saved","id"),("snapshot","source,sha256"),("fetch","source,checked_at,error"),
+        for table,columns in (("case_identity","uuid"),("exhibit","owner,citation,hash"),("intel_saved","id"),("snapshot","source,sha256"),("fetch","source,checked_at,error"),
                               ("evidence","fingerprint"),("discovery_item","id,filename"),
                               ("discovery_file","id,sequence,filename"),("news_story","edition,link,title,summary,published,body"),
                               ("selection","regions,sources"),("news_setting","place")):

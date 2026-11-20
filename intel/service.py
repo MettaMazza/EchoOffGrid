@@ -12,11 +12,9 @@ import json
 import os
 import re
 import sqlite3
-import sys
 import time
 
 ROOT=Path(__file__).resolve().parent
-sys.path.insert(0,str(ROOT.parent/"vendor/openintel"))
 from . import providers as p
 from .orbits import predict
 
@@ -41,12 +39,15 @@ class Intel:
         self.lock=Lock()
         self.pending=set()
         self.live_ais={}
+        self.preview_frames={}
         # AIS credentials are intentionally session-only, including on Android external storage.
         self.ais_key=""
         with closing(connect(self.path)) as db:
             db.executescript("""
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS obs(region,source,object,stamp INTEGER,received INTEGER,id,body,media BLOB,PRIMARY KEY(region,id));
+            CREATE TABLE IF NOT EXISTS import_original(hash TEXT PRIMARY KEY,body BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS import_record(region TEXT,id TEXT,hash TEXT,PRIMARY KEY(region,id));
             CREATE INDEX IF NOT EXISTS by_time ON obs(region,stamp);
             CREATE INDEX IF NOT EXISTS by_id ON obs(id);
             CREATE TABLE IF NOT EXISTS status(region,source,attempt INTEGER,next INTEGER,note,PRIMARY KEY(region,source));
@@ -59,6 +60,9 @@ class Intel:
         with closing(connect(archive)) as db:
             db.execute("CREATE TABLE IF NOT EXISTS intel_saved(id TEXT PRIMARY KEY,region TEXT,body TEXT,media BLOB)")
             db.commit()
+
+        from .cases import initialize
+        initialize(self)
 
     def close(self):
         self.pool.shutdown(wait=False,cancel_futures=True)
@@ -155,12 +159,21 @@ class Intel:
 
     def store(self,key,row,media=None):
         with closing(connect(self.path)) as db,db:
+            db.execute("BEGIN IMMEDIATE")
+            previous=db.execute("SELECT body,media FROM obs WHERE region=? AND id=?",(key,row["id"])).fetchone()
+            if previous:
+                if json.loads(previous["body"])==row and previous["media"]==media:return
+                original=row["id"]
+                version=sha256(json.dumps(row,sort_keys=True).encode()+(media or b"")).hexdigest()
+                row=dict(row,id=sha256((original+version).encode()).hexdigest(),revises=original)
             db.execute("INSERT OR IGNORE INTO obs VALUES (?,?,?,?,?,?,?,?)",(key,row["source"],row["object"],row["time"],int(time.time()),row["id"],json.dumps(row),media))
 
     def trim(self,db):
         db.execute("DELETE FROM obs WHERE received<?",(time.time()-2*DAY,))
         db.execute("DELETE FROM obs WHERE rowid IN (SELECT rowid FROM obs ORDER BY received DESC,rowid DESC LIMIT -1 OFFSET ?)",(MAX_ROWS,))
         db.execute("DELETE FROM obs WHERE rowid IN (SELECT rowid FROM (SELECT rowid,sum(length(media)) OVER (ORDER BY received DESC,rowid DESC) AS total FROM obs WHERE media IS NOT NULL) WHERE total>?)",(MAX_MEDIA,))
+        db.execute("DELETE FROM import_record WHERE NOT EXISTS(SELECT 1 FROM obs WHERE obs.region=import_record.region AND obs.id=import_record.id)")
+        db.execute("DELETE FROM import_original WHERE hash NOT IN(SELECT hash FROM import_record)")
         db.execute("DELETE FROM status WHERE attempt<?",(time.time()-14*DAY,))
 
     def local(self,key,raw):
@@ -177,8 +190,12 @@ class Intel:
             if not p.inside(p.extent(key),x,y):raise ValueError("A point is outside the selected region")
             rows.append(p.observation("local",props.get("id",props["title"]),props["title"],y,x,stamp,props.get("detail","Received locally")))
         with closing(connect(self.path)) as db,db:
+            payload=raw.encode()
+            digest=sha256(payload).hexdigest()
+            db.execute("INSERT OR IGNORE INTO import_original VALUES(?,?)",(digest,payload))
             for row in rows:
-                db.execute("INSERT OR IGNORE INTO obs VALUES (?,?,?,?,?,?,?,NULL)",(key,row["source"],row["object"],row["time"],int(time.time()),row["id"],json.dumps(row)))
+                inserted=db.execute("INSERT OR IGNORE INTO obs VALUES (?,?,?,?,?,?,?,NULL)",(key,row["source"],row["object"],row["time"],int(time.time()),row["id"],json.dumps(row)))
+                if inserted.rowcount:db.execute("INSERT INTO import_record VALUES(?,?,?)",(key,row["id"],digest))
         with closing(connect(self.path)) as db,db:self.trim(db)
         return len(rows)
 

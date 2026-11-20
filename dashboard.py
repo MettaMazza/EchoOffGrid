@@ -18,6 +18,7 @@ import history_view
 from intel import screen as intel_screen
 from intel.service import Intel
 import opengov
+import opencorpo
 import personal_library
 import narrator
 from news import News
@@ -258,7 +259,7 @@ def pixel_mark():
 WORKSTATION_MARK = pixel_mark()
 
 def page(section, body, token=""):
-    links = [("/", "Home"), ("/library", "Library"), ("/news","News"), ("/openintel","OpenIntel"), ("/opengov","OpenGov"), ("/history","History"), ("/wikipedia", "Wikipedia"),
+    links = [("/", "Home"), ("/library", "Library"), ("/news","News"), ("/openintel","OpenIntel"), ("/opengov","OpenGov"), ("/opencorpo","OpenCorpo"), ("/history","History"), ("/wikipedia", "Wikipedia"),
              ("/dictionary", "Dictionary"), ("/maps", "Maps"), ("/downloads", "Downloads"),
              ("/private-browser","Private Browser"), ("/echolite", "EchoLite"), ("/devices", "Devices")]
     primary = {"Compare packets":"Devices","Receiver log":"Devices","ScotMesh reports":"Devices",
@@ -305,6 +306,7 @@ class Downloads:
             discovery.init(database)
             spotlight.seed(database)
             opengov.seed(database,database_path.parent)
+            opencorpo.seed(database,database_path.parent)
             database.execute("UPDATE discovery_item SET kind='Games' WHERE kind='Emulators'")
             personal_library.seed_pictures(database,database_path.parent)
             database.execute("CREATE INDEX IF NOT EXISTS fetch_source_time ON fetch(source, checked_at)")
@@ -746,6 +748,8 @@ class Dashboard(BaseHTTPRequestHandler):
             body=f'<img class=personal-picture alt="{escape(row["title"])}" src="{source}">'
         elif row["kind"]=="Games" and path.suffix in {".html",".htm"}:
             body=f'<iframe sandbox="allow-scripts" class="kit-document puzzle-frame" title="Imported game" src="/personal-game/{key}"></iframe>'
+        elif path.suffix==".json" and row["kind"]=="Documents" and row["provider"] in ("GLEIF","ProPublica Nonprofit Explorer"):
+            body=opencorpo.json_reader(path.read_bytes())
         elif path.suffix==".epub":
             value=parse_qs(urlsplit(self.path).query).get("chapter",["0"])[0]
             body=personal_library.epub_page(path,key,int(value) if re.fullmatch(r"[0-9]{1,6}",value) else 0)
@@ -940,17 +944,16 @@ class Dashboard(BaseHTTPRequestHandler):
 {lane("Transfer queue", current, "No active transfers.")}{lane("Needs attention", failed, "No interrupted transfers.")}</div>
 {saved_downloads}<h3>Latest check by source</h3><div class=scroll-table><table><thead><tr><th>Source</th><th>Result</th><th>Checked at</th></tr></thead><tbody>{history}</tbody></table></div></section>''')
             return
+        backup = ('<a href="/archive/backup">Download archive backup</a>' if getattr(self.server,"android",False)
+                  else f'<form method=post action="/archive/backup"><input type=hidden name=token value="{self.server.token}"><button>Download archive backup</button></form>')
         self.send_page("Saved sources", f"""
 <form><input type=search name=q value="{escape(query)}" placeholder="Search saved sources"
 aria-label="Search saved sources"> <button>Search</button></form>
 <nav class=pills><a href="/library">Browse library</a><a href="/sources">Add sources</a><a href="/downloads">Download activity</a></nav>
 <section id="archive-live">{snippets or ("<p>No matching sources.</p>" if query else "<p>Your saved sources will appear here.</p>")}</section>
 <small id="connection-status" role=status></small>
-<form method=post action="/archive/backup">
-<input type=hidden name=token value="{self.server.token}">
-<button>Download archive backup</button>
-<small>Includes saved sources, download history and imported evidence.</small>
-</form>""")
+{backup}
+<small>Includes saved sources, download history and imported evidence.</small>""")
 
     def evidence(self, params, notice="", *, export=False):
         checks = params.get("checks") == ["1"]
@@ -1048,7 +1051,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
 </div></fieldset>
 <button>Apply filters</button> <a href="/evidence?source={source}">Reset</a></details></form>
 <small>Showing {len(rows)} events, up to 250 newest matches.</small>
-<a href="/evidence.csv?{escape(export_query)}" download>Export matching events as CSV</a>
+<a href="/evidence.csv?{escape(export_query)}" {"" if getattr(self.server,"android",False) else "download"}>Export matching events as CSV</a>
 {"".join(events) or "<p>No packets or observations match these filters.</p>"}""")
 
     def export_evidence(self, rows):
@@ -1220,7 +1223,12 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if re.fullmatch(r"/publisher-video/[0-9a-f]{64}",target.path):
             media_previews.film_preview(self,target.path.rsplit("/",1)[1]);return
         if target.path == "/private-browser":
-            self.send_page("Private Browser",private_browser.screen(self.server.private_browser,self.server.token))
+            try:
+                destination = private_browser.link_address(params["to"][0]) if "to" in params else ""
+            except (ValueError, UnicodeError):
+                self.send_page("Private Browser","<p>This link requires a public HTTPS address.</p>",400)
+                return
+            self.send_page("Private Browser",private_browser.screen(self.server.private_browser,self.server.token,destination))
             return
         if re.fullmatch(r"/private-image/[a-f0-9]{32}",target.path):
             try:
@@ -1231,6 +1239,10 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
             self.send_header("X-Content-Type-Options","nosniff");self.send_header("Content-Length",str(len(data)))
             self.end_headers();self.wfile.write(data);return
         if target.path == "/private-status":
+            if params.get("phone")==["1"] and hasattr(self.server,"phone_proxy"):
+                data=json.dumps({"port":self.server.phone_proxy.server_port}).encode()
+                self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store")
+                self.end_headers();self.wfile.write(data);return
             status,ready=self.server.private_browser.status()
             data=json.dumps({"status":status,"ready":ready,"port":self.server.private_browser.proxy.server_port if ready and self.server.private_browser.proxy else 0}).encode()
             self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store")
@@ -1282,15 +1294,17 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                 self.send_response(200);self.send_header("Content-Type",mime);self.send_header("Content-Security-Policy",policy)
                 self.send_header("Content-Length",str(file.stat().st_size));self.end_headers();copyfileobj(stream,self.wfile)
             return
-        if target.path == "/opengov/portal":
+        if target.path in ("/opengov/portal","/opencorpo/portal"):
+            corpo=target.path.startswith("/opencorpo")
             try:
                 with closing(connect(self.server.database)) as db:
-                    body=opengov.govports.browse(db,params.get("country",[""])[0],params.get("url",[""])[0],self.server.token)
-                self.send_page("OpenGov",body)
+                    body=opengov.govports.browse(db,params.get("country",[""])[0],params.get("url",[""])[0],self.server.token,directory=opencorpo.PORTALS if corpo else None,base="/opencorpo" if corpo else "/opengov")
+                self.send_page("OpenCorpo" if corpo else "OpenGov",body)
             except ValueError as error:self.send_error(400,str(error))
-        elif target.path == "/opengov":
+        elif target.path in ("/opengov","/opencorpo"):
+            corpo=target.path=="/opencorpo"
             with closing(connect(self.server.database)) as db:
-                self.send_page("OpenGov",opengov.screen(db,params,self.server.token))
+                self.send_page("OpenCorpo" if corpo else "OpenGov",opengov.screen(db,params,self.server.token,opencorpo if corpo else None))
         elif target.path == "/news":
             self.send_page("News", self.server.news.render(self.server.token))
         elif target.path.startswith("/news/field-notes/"):
@@ -1530,6 +1544,9 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
             action=fields.get("action",["browse"])[0]
             url,article,message="","",""
             try:
+                if action=="ensure":
+                    session.start(fields.get("country",[session.location])[0])
+                    self.send_response(204);self.end_headers();return
                 if action=="connect":session.start(fields.get("country",[""])[0])
                 elif action=="disconnect":session.close()
                 else:url,article=session.navigate(action,fields.get("url",[""])[0])

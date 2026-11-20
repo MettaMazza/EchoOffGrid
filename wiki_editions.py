@@ -33,7 +33,7 @@ class Editions:
                 self.wiki.preferred = self.starter()
 
     def starter(self):
-        return next((p.stem for p in self.wiki.archives if "_mini_" in p.name), None)
+        return next((p.stem for p in self.wiki.archives if p.name.startswith("wikipedia_") and "_mini_" in p.name), None)
 
     def select(self, key):
         if key not in EDITIONS and key != "starter":

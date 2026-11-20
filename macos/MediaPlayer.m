@@ -107,6 +107,9 @@ BOOL EchoPlayMedia(NSView *host, NSURL *mediaURL, NSURL *vlcApp) {
     [view.slider setAccessibilityLabel:@"Playback position"];
     NSButton *wide=[NSButton buttonWithTitle:@"Toggle fullscreen" target:view action:@selector(toggleFullscreen)];
     NSStackView *bar=[NSStackView stackViewWithViews:@[back,view.toggle,view.slider,wide]];
+    bar.distribution=NSStackViewDistributionFill;
+    [view.slider.widthAnchor constraintGreaterThanOrEqualToConstant:100].active=YES;
+    [view.slider setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
     bar.frame=NSMakeRect(12,10,MAX(1,host.bounds.size.width-24),30);
     bar.autoresizingMask=NSViewWidthSizable;
     [view addSubview:bar];[host addSubview:view];

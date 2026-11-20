@@ -21,7 +21,7 @@ def allowed(country,url):
     host=parts.hostname or ""
     for site in country["sites"]:
         root=urlsplit(site).hostname.removeprefix("www.")
-        if host==root or host.endswith("."+root):
+        if host==root or host=="www."+root or (not country.get("exact_hosts") and host.endswith("."+root)):
             return True
     return False
 
@@ -73,8 +73,8 @@ def parse_html(response):
     return page
 
 
-def route(code,url):
-    return "/opengov/portal?"+urlencode({"country":code,"url":url})
+def route(code,url,base="/opengov"):
+    return base+"/portal?"+urlencode({"country":code,"url":url})
 
 
 def directory(code,query):
@@ -94,11 +94,11 @@ def directory(code,query):
             f'<form class=gov-search><input type=hidden name=country value="{code}"><label>Search these official sites<input name=siteq type=search value="{escape(query)}" required></label><button>Find documents</button></form>'+
             (f'<a href="{escape(search)}">View web search results for {escape(query)} ↗</a>' if query else "")+'</section>')
 
-def browse(db,code,url,token):
+def browse(db,code,url,token,*,directory=None,base="/opengov"):
     import opengov,discovery
-    country=COUNTRIES.get(code)
+    country=(COUNTRIES if directory is None else directory).get(code)
     if not country or not allowed(country,url):raise ValueError("Unknown government portal.")
-    body=f'<a href="/opengov?country={code}">← {escape(country["name"])}</a> · <a href="{escape(url)}">Open official website ↗</a>'
+    body=f'<a href="{base}?country={code}">← {escape(country["name"])}</a> · <a href="{escape(url)}">Open official website ↗</a>'
     try:
         with fetch(country,url) as response:
             mime=response.headers.get_content_type()
@@ -119,9 +119,10 @@ def browse(db,code,url,token):
                         if urlsplit(dest).scheme=="https":
                             links.append(f'<a href="{escape(dest)}">{escape(label.strip()[:150])} ↗</a>')
                         continue
-                    links.append(f'<a href="{escape(route(code,dest))}">{escape(label.strip()[:150])}</a>')
+                    links.append(f'<a href="{escape(route(code,dest,base))}">{escape(label.strip()[:150])}</a>')
             else:raise ValueError("Use the official website to open this file format.")
         item=opengov.record(title,country["name"]+" · "+urlsplit(address).hostname,"National portal · "+country["name"],address,ext)
+        if base=="/opencorpo":item["rights"]="OpenCorpo · "+item["rights"]
         with db:
             db.execute("INSERT OR IGNORE INTO discovery_item(id,kind,title,preview,rights,url,ext,provider) VALUES(:id,:kind,:title,:preview,:rights,:url,:ext,:provider)",item)
         saved=db.execute("SELECT filename FROM discovery_item WHERE id=?",(item["id"],)).fetchone()[0]
@@ -132,4 +133,8 @@ def browse(db,code,url,token):
         return body+f'<p role=status>Portal reader unavailable. {escape(str(error))}</p>'
 
 def country_for(item):
-    return next((c for c in COUNTRIES.values() if item["provider"]==c["name"]+" · "+str(urlsplit(item["url"]).hostname) and allowed(c,item["url"])),None)
+    catalog=COUNTRIES
+    if item["rights"].startswith("OpenCorpo ·"):
+        from opencorpo import PORTALS
+        catalog=PORTALS
+    return next((c for c in catalog.values() if item["provider"]==c["name"]+" · "+str(urlsplit(item["url"]).hostname) and allowed(c,item["url"])),None)

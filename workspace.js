@@ -12,7 +12,8 @@
     reveal();
   }
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let paused = reduce.matches || sessionStorage.getItem('pauseMotion') === 'yes';
+  const savedMotion = document.cookie.match(/(?:^|; )echo_pause_motion=(yes|no)(?:;|$)/);
+  let paused = savedMotion ? savedMotion[1] === 'yes' : reduce.matches || sessionStorage.getItem('pauseMotion') === 'yes';
   const motion = document.querySelector('#motion');
   function showMotion() {
     if (motion) {
@@ -22,7 +23,7 @@
   }
   if (motion) motion.onclick = () => {
     paused = !paused;
-    sessionStorage.setItem('pauseMotion', paused ? 'yes' : 'no');
+    document.cookie='echo_pause_motion='+(paused?'yes':'no')+'; Path=/; Max-Age=31536000; SameSite=Strict';
     showMotion();
   };
   showMotion();
@@ -250,6 +251,26 @@
 })();
 
 const mainVideo = document.querySelector('main video[controls]');
+if (mainVideo) {
+  const playerLink = document.querySelector('main a[href^="/player/"]');
+  if(playerLink && navigator.userAgent.includes('EchoOffGrid/Android')){
+    const small=document.createElement('a');small.href=playerLink.href;small.textContent='Picture in picture';
+    small.className='button';
+    small.addEventListener('click',()=>{
+      const url=new URL(playerLink.href);url.searchParams.set('pip','1');
+      url.searchParams.set('at',Math.round(mainVideo.currentTime*1000));small.href=url.href;mainVideo.pause();
+    });
+    playerLink.after(' ',small);
+  }
+  const offerNativePlayer = () => {
+    if (!playerLink || !mainVideo.error) return;
+    mainVideo.hidden = true;
+    playerLink.classList.add('button');
+    playerLink.textContent = 'Play this video in the built-in player';
+  };
+  mainVideo.addEventListener('error', offerNativePlayer);
+  offerNativePlayer();
+}
 const autoplay = document.querySelector('#video-autoplay');
 if (mainVideo && autoplay) {
   autoplay.checked = document.cookie.split('; ').includes('echo_autoplay=1');
@@ -295,23 +316,130 @@ document.querySelector('#population-filter')?.addEventListener('input',event=>{
   });
 });
 
-const privateStatus = document.querySelector('#private-status');
-if (privateStatus) {
-  const pollPrivateStatus = async () => {
-    try {
-      const response = await fetch('/private-status', {cache:'no-store'});
-      if (!response.ok) throw Error();
-      const {status, ready, port} = await response.json();
-      privateStatus.textContent = status;
-      const link=document.querySelector('#native-browser-launch');link.href=ready?'/private-open?port='+port:'/private-open';link.setAttribute('aria-disabled',String(!ready));
-    } catch {
-      privateStatus.textContent = 'Connection unavailable';
-      document.querySelector('#native-browser-launch').setAttribute('aria-disabled','true');
+// Rewrite actual hrefs so new tabs and keyboard activation follow the same protected route.
+function protectWebLinks(doc) {
+  function rewrite(anchor) {
+    const raw = anchor.getAttribute('href');
+    if (!raw) return;
+    let target;
+    try { target = new URL(raw, doc.baseURI); } catch { return; }
+    if (!['http:', 'https:'].includes(target.protocol) || target.origin === location.origin) return;
+    anchor.href = location.origin + '/private-browser?' + new URLSearchParams({to: target.href});
+    anchor.removeAttribute('target');
+    anchor.removeAttribute('download');
+  }
+  function scan(root) {
+    if (root.matches?.('a[href]')) rewrite(root);
+    root.querySelectorAll?.('a[href]').forEach(rewrite);
+  }
+  scan(doc);
+  new MutationObserver(records => {
+    for (const record of records) {
+      if (record.type === 'attributes') rewrite(record.target);
+      else record.addedNodes.forEach(scan);
     }
-  };
-  pollPrivateStatus();
-  const timer = setInterval(pollPrivateStatus, 1500);
-  window.addEventListener('pagehide', () => clearInterval(timer), {once:true});
+  }).observe(doc.documentElement, {subtree:true,childList:true,attributes:true,attributeFilter:['href']});
+  doc.addEventListener('click', event => {
+    const anchor=event.target.closest?.('a[href]');
+    if (!anchor) return;
+    rewrite(anchor);
+    if (doc !== document && anchor.origin === location.origin && anchor.pathname === '/private-browser') {
+      event.preventDefault();
+      location.assign(anchor.href);
+    }
+  },true);
+}
+protectWebLinks(document);
+function protectFrame(frame) {
+  try { if (frame.contentDocument?.documentElement) protectWebLinks(frame.contentDocument); } catch {}
+}
+document.querySelectorAll('iframe').forEach(protectFrame);
+document.addEventListener('load',e=>{if(e.target.tagName==='IFRAME')protectFrame(e.target);},true);
+
+const exitSelect=document.querySelector('.private-browser-controls [name=country]');
+const savedExit=document.cookie.match(/(?:^|; )echo_exit=([a-z]{0,2})(?:;|$)/);
+if(exitSelect){
+  if(savedExit && [...exitSelect.options].some(o=>o.value===savedExit[1]))exitSelect.value=savedExit[1];
+  exitSelect.addEventListener('change',()=>{document.cookie='echo_exit='+exitSelect.value+'; Path=/; Max-Age=31536000; SameSite=Strict';});
+}
+const phoneVPN = navigator.userAgent.includes('EchoOffGrid/Android');
+const nativePrivate = phoneVPN || navigator.userAgent.includes('EchoOffGrid/Mac');
+async function phoneState() {
+  const response=await fetch('/phone-vpn-status',{cache:'no-store'});
+  if (!response.ok) throw Error('VPN status unavailable');
+  return response.json();
+}
+if (phoneVPN) {
+  const toggle=document.createElement('a');
+  toggle.className='phone-vpn-toggle';
+  toggle.setAttribute('role','switch');
+  document.querySelector('.workstation-header')?.append(toggle);
+  async function updateToggle() {
+    try {
+      const {enabled,status}=await phoneState();
+      const params=new URLSearchParams({action:enabled?'off':'on'});
+      const field=document.querySelector('[name=country]');
+      if(field) params.set('country',field.value);
+      toggle.href='/phone-vpn?'+params;
+      toggle.textContent='VPN '+(enabled ? (status==='Connected over Tor'?'on':'…') : 'off');
+      toggle.title='Phone VPN · '+status;
+      toggle.setAttribute('aria-label',toggle.title);
+      toggle.setAttribute('aria-checked',String(enabled));
+    } catch { toggle.removeAttribute('href'); toggle.textContent='Phone VPN unavailable'; }
+  }
+  updateToggle();
+  document.querySelector('[name=country]')?.addEventListener('change',updateToggle);
+  const timer=setInterval(updateToggle,1500);
+  window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+}
+
+const privateStatus=document.querySelector('#private-status');
+if (privateStatus) {
+  const link=document.querySelector('#native-browser-launch');
+  const destination=link.dataset.destination;
+  let launched=false, busy=false, started=false;
+  const reader=document.getElementById('private-links');
+  function openReader(url) {
+    const field=document.createElement('input');
+    field.type='hidden';field.name='url';field.value=url;
+    reader.append(field);reader.submit();
+  }
+  link.addEventListener('click',e=>{
+    if(link.getAttribute('aria-disabled')==='true') e.preventDefault();
+    else if(!nativePrivate){e.preventDefault();openReader(destination || 'https://duckduckgo.com/');}
+  });
+  async function refresh() {
+    if(busy)return;
+    busy=true;
+    try {
+      const phone=phoneVPN ? await phoneState() : {enabled:false};
+      if(destination && !started && !phone.enabled) {
+        const response=await fetch('/private-browser',{method:'POST',body:new URLSearchParams({
+          token:reader.elements.token.value,action:'ensure',country:exitSelect.value
+        })});
+        if(response.status!==204)throw Error();
+        started=true;
+      }
+      const response=await fetch('/private-status'+(phone.enabled?'?phone=1':''),{cache:'no-store'});
+      if(!response.ok)throw Error();
+      const session=await response.json();
+      const ready=phone.enabled ? phone.status==='Connected over Tor' : session.ready;
+      privateStatus.textContent=phone.enabled ? 'Phone VPN · '+phone.status : session.status;
+      link.setAttribute('aria-disabled',String(!ready));
+      if(!ready){link.removeAttribute('href');return;}
+      link.href='/private-open?'+new URLSearchParams({port:session.port,url:destination || 'https://duckduckgo.com/'});
+      if(destination && !launched) {
+        launched=true;
+        if(nativePrivate) location.assign(link.href); else openReader(destination);
+      }
+    } catch {
+      privateStatus.textContent='Could not establish a protected connection.';
+      link.setAttribute('aria-disabled','true');link.removeAttribute('href');
+    } finally {busy=false;}
+  }
+  refresh();
+  const timer=setInterval(refresh,1500);
+  window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
 }
 
 document.querySelector('.workstation-back')?.addEventListener('click',()=>{

@@ -10,7 +10,13 @@ import java.io.File;
 
 public class Player extends Activity {
     boolean fullscreen, requestedPip;
-    long startAt;
+    long startAt,lastReport;
+    boolean series,ended;
+    void reportPosition(boolean finish){
+        if(!series || player==null || ended || startAt>0 || player.getLength()<=0)return;
+        ended=finish;
+        Main.seriesPosition(getIntent().getData(),finish?player.getLength():player.getTime(),player.getLength(),finish);
+    }
     private SurfaceView video;
     private LinearLayout layout;
     private boolean pipSupported(){return getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE);}
@@ -43,6 +49,7 @@ public class Player extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         try {
+            series="1".equals(getIntent().getData().getQueryParameter("series"));
             requestedPip="1".equals(getIntent().getData().getQueryParameter("pip"));
             String offset=getIntent().getData().getQueryParameter("at");
             if(offset!=null && offset.matches("[0-9]{1,12}"))startAt=Long.parseLong(offset);
@@ -64,6 +71,8 @@ public class Player extends Activity {
             engine=new LibVLC(this, new java.util.ArrayList<>(java.util.Arrays.asList("--vout=android_display","--no-video-title-show")));player=new MediaPlayer(engine);
             player.setEventListener(event -> {
                 if(event.type==MediaPlayer.Event.Playing){if(startAt>0){player.setTime(startAt);startAt=0;}if(requestedPip){requestedPip=false;pip();}}
+                if(series && event.type==MediaPlayer.Event.EndReached){reportPosition(true);finish();}
+                if(event.type==MediaPlayer.Event.Paused)reportPosition(false);
                 if(pipSupported() && (event.type==MediaPlayer.Event.Playing || event.type==MediaPlayer.Event.Paused))setPictureInPictureParams(pipParams());
                 if(event.type == MediaPlayer.Event.EncounteredError || event.type == MediaPlayer.Event.Playing ||
                    event.type == MediaPlayer.Event.EndReached || event.type == MediaPlayer.Event.Paused)
@@ -93,6 +102,7 @@ public class Player extends Activity {
             });
             timer.post(new Runnable(){public void run(){
                 if(player!=null && player.getLength()>0 && !seek.isPressed())seek.setProgress((int)(player.getTime()*1000/player.getLength()));
+                if(player!=null && player.isPlaying() && SystemClock.elapsedRealtime()-lastReport>3000){reportPosition(false);lastReport=SystemClock.elapsedRealtime();}
                 timer.postDelayed(this,500);
             }});
         }catch(Exception error) {
@@ -103,7 +113,7 @@ public class Player extends Activity {
     }
     @Override protected void onStop(){if(player!=null && player.isPlaying())player.pause();super.onStop();}
     @Override protected void onDestroy(){
-        timer.removeCallbacksAndMessages(null);
+        reportPosition(false);timer.removeCallbacksAndMessages(null);
         if(player!=null){player.stop();player.getVLCVout().detachViews();player.release();player=null;}
         if(engine!=null)engine.release();
         super.onDestroy();

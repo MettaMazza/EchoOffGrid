@@ -488,7 +488,89 @@ public class Checks extends Instrumentation {
         navigate("/library/"+kind);
         return new org.json.JSONArray(js("Array.from(document.querySelectorAll("+org.json.JSONObject.quote(selector)+"),a=>a.pathname+a.search)")).getString(0);
     }
+    private String seedSeriesFixture() throws Exception {
+        String key=java.util.UUID.randomUUID().toString().replace("-","");key=key+key;
+        File root=new File(getTargetContext().getExternalFilesDir(null),"Workstation");
+        // Seed before Main starts so the embedded runtime has no open database connection.
+        try(android.database.sqlite.SQLiteDatabase db=android.database.sqlite.SQLiteDatabase.openDatabase(new File(root,"archive.sqlite3").getPath(),null,android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)){
+            db.beginTransaction();
+            try{
+                for(int part=0;part<3;part++){
+                    String file=key+"-"+part+".mp4",title="Fixture S01E0"+(part+1);
+                    try(InputStream in=getContext().getAssets().open("show.mp4")){
+                        java.nio.file.Files.copy(in,new File(new File(root,"Content"),file).toPath());
+                    }
+                    if(part==0)db.execSQL("INSERT INTO discovery_item VALUES(?,?,?,?,?,?,?,?,?)",new Object[]{key,"Shows","Playback QA","","","","","QA",file});
+                    db.execSQL("INSERT INTO discovery_file VALUES(?,?,?,?)",new Object[]{key,part,title,file});
+                    db.execSQL("INSERT INTO series_parts VALUES(?,?,?)",new Object[]{key,part,title});
+                }
+                db.setTransactionSuccessful();
+            }finally{db.endTransaction();}
+        }
+        return key;
+    }
+
+    private void checkSeriesPlayback(String key) throws Exception {
+        navigate("/content/"+key+"?episodes=1");
+        String original=js("document.cookie.split('; ').includes('echo_autoplay=1')");
+        try(java.util.Scanner input=new java.util.Scanner(getContext().getAssets().open("series-playback.js"),"UTF-8")){
+            String script=input.useDelimiter("\\A").next();
+            js("sessionStorage.removeItem('seriesStep')");
+            for(int i=0;i<400;i++){
+                js("if(document.readyState==='complete' && location.pathname==='/content/"+key+"'){window.qaSeriesKey='"+key+"';"+script+"}");
+                String proof=js("window.seriesPlaybackProof");
+                if(proof.contains("FAIL"))throw new IOException(proof);
+                if(proof.contains("PASS")){
+                    results.putString("Series playback",proof);
+                    navigate("/content/"+key+"?part=2");
+                    ActivityMonitor monitor=addMonitor("dev.echooffgrid.mobile.Player",null,false);
+                    js("document.querySelector('a[href^=\"/player/content/\"]').click()");
+                    Activity nativePlayer=monitor.waitForActivityWithTimeout(12000);removeMonitor(monitor);
+                    if(nativePlayer==null)throw new IOException("Native episode failed to open");
+                    for(int n=0;n<600 && !nativePlayer.isDestroyed();n++)Thread.sleep(100);
+                    if(!nativePlayer.isDestroyed()){runOnMainSync(nativePlayer::finish);throw new IOException("Native episode did not finish");}
+                    navigate("/content/"+key+"?episodes=1");
+                    awaitWeb("document.querySelectorAll('.episode-grid progress[value=\"100\"]').length===3",8);
+                    results.putString("Native series playback","Last episode played to completion and saved its watched bar");
+                    return;
+                }
+                Thread.sleep(180);
+            }
+            throw new IOException("Series test timed out "+js("[location.href,sessionStorage.seriesStep,document.querySelector('video')?.error?.message]"));
+        }finally{
+            js("document.cookie='echo_autoplay="+("true".equals(original)?"1":"0")+"; Path=/; Max-Age=31536000; SameSite=Strict'");
+            navigate("/content/"+key+"?episodes=1");
+            js("document.querySelector('form[action=\"/download/remove\"]').requestSubmit()");
+        }
+    }
+    private void checkGridDelete() throws Exception {
+        // Import and delete a disposable file through the same endpoints and UI as the user.
+        navigate("/library/books");
+        String token=new org.json.JSONArray(js("[document.querySelector('.personal-import').dataset.token]")).getString(0);
+        HttpURLConnection upload=(HttpURLConnection)new URL(origin+"/library/books/import").openConnection();
+        upload.setRequestProperty("Cookie",cookie);upload.setRequestProperty("X-Library-Token",token);
+        upload.setRequestProperty("X-Filename","Temporary deletion test.txt");upload.setRequestMethod("POST");upload.setDoOutput(true);
+        String key;
+        try{
+            try(OutputStream out=upload.getOutputStream()){out.write(("Temporary library QA "+java.util.UUID.randomUUID()).getBytes("UTF-8"));}
+            try(BufferedReader in=new BufferedReader(new InputStreamReader(upload.getInputStream()))){key=in.readLine();}
+        }finally{upload.disconnect();}
+        if(key==null || !key.matches("personal-[0-9a-f]{64}"))throw new IOException("Could not import temporary test file");
+        navigate("/library/books");
+        String card="document.querySelector('a[href=\"/content/"+key+"\"]')";
+        js(card+".parentElement.querySelector('.grid-delete').click()");
+        awaitWeb("document.querySelector('.library-delete-dialog').open",3);
+        js("document.querySelector('.library-delete-dialog button[value=cancel]').click()");
+        if(!"true".equals(js("!!"+card)))throw new IOException("Cancel lost the test title");
+        js(card+".parentElement.querySelector('.grid-delete').click();document.querySelector('.delete-title').click()");
+        awaitWeb("!"+card,10);
+        File disposable=new File(getTargetContext().getExternalFilesDir(null),"Workstation/Content/"+key+".txt");
+        for(int n=0;n<100 && disposable.exists();n++)Thread.sleep(100);
+        if(disposable.exists() || get("/library/books","Books").contains("/content/"+key))throw new IOException("Delete did not clear test title");
+        results.putString("Delete","Removed temporary title and local bytes");
+    }
     private void backgroundChecks(String mode)throws Exception{
+        if(mode.equals("gridDelete")){checkGridDelete();return;}
         if(mode.equals("pip")){
             String path=firstShelf("watch","a.item");navigate(path);
             ActivityMonitor monitor=addMonitor("dev.echooffgrid.mobile.Player",null,false);
@@ -563,6 +645,7 @@ public class Checks extends Instrumentation {
     @Override public void onStart() {
         try{
 
+            String fixture="seriesPlayback".equals(backgroundMode)?seedSeriesFixture():null;
             ActivityMonitor monitor=addMonitor("dev.echooffgrid.mobile.Main",null,false);
             try(android.os.ParcelFileDescriptor command=getUiAutomation().executeShellCommand("am start -n dev.echooffgrid.mobile/.Main");
                 InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(command)){while(in.read()!=-1){}}
@@ -582,6 +665,7 @@ public class Checks extends Instrumentation {
                 Thread.sleep(100);
             }
             if(cookie==null) throw new IOException("Local dashboard did not open");
+            if(fixture!=null){checkSeriesPlayback(fixture);finish(Activity.RESULT_OK,results);return;}
             if(seriesIds!=null){
                 String[] ids=seriesIds.split(",");
                 for(String id:ids)if(!id.matches("[0-9a-f]{64}"))throw new IOException("Invalid test selection");
@@ -602,24 +686,7 @@ public class Checks extends Instrumentation {
                         Thread.sleep(700);
                     }
                 }
-                // Import and delete a disposable file through the same endpoints and UI as the user.
-                navigate("/library/books");
-                String token=new org.json.JSONArray(js("[document.querySelector('.personal-import').dataset.token]")).getString(0);
-                HttpURLConnection upload=(HttpURLConnection)new URL(origin+"/library/books/import").openConnection();
-                upload.setRequestProperty("Cookie",cookie);upload.setRequestProperty("X-Library-Token",token);
-                upload.setRequestProperty("X-Filename","Temporary deletion test.txt");upload.setRequestMethod("POST");upload.setDoOutput(true);
-                String key;
-                try{
-                    try(OutputStream out=upload.getOutputStream()){out.write(("Temporary library QA "+java.util.UUID.randomUUID()).getBytes("UTF-8"));}
-                    try(BufferedReader in=new BufferedReader(new InputStreamReader(upload.getInputStream()))){key=in.readLine();}
-                }finally{upload.disconnect();}
-                if(key==null || !key.matches("personal-[0-9a-f]{64}"))throw new IOException("Could not import temporary test file");
-                navigate("/content/"+key);
-                js("document.querySelector('form[action=\"/download/remove\"]').closest('details').open=true;document.querySelector('form[action=\"/download/remove\"] button').click()");
-                File disposable=new File(getTargetContext().getExternalFilesDir(null),"Workstation/Content/"+key+".txt");
-                for(int n=0;n<100 && disposable.exists();n++)Thread.sleep(100);
-                if(disposable.exists() || get("/library/books","Books").contains("/content/"+key))throw new IOException("Delete did not clear test title");
-                results.putString("Delete","Removed temporary title and local bytes");
+                checkGridDelete();
                 for(String id:ids){
                     boolean ready=false;
                     for(int n=0;n<720;n++){

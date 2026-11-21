@@ -277,6 +277,8 @@ For Internet Archive video collections, open **Library → Shows** to browse the
 
 In **Downloads**, **Cancel transfer** stops the selected job on this device and keeps saved episodes and resumable partials. **Remove download → Delete from this device** removes the title’s local copies. Two publisher listings can share a title and have independent queue entries.
 
+In Library → Shows, open a series to see its episodes. **Autoplay** starts a new series at episode one or continues from the last saved position on this device. **All episodes** opens the grid while autoplay is enabled. The bar beneath each thumbnail shows how much you watched. Up next follows the series order and waits if the following episode still needs downloading. Switch autoplay off to stop at the end of each episode.
+
 Downloads are stored in a local queue. They can continue while the workstation process is running and interrupted jobs are requeued when it starts again. On Android, start a download, audiobook or Read all while the app is open. Active downloads and audio use foreground services so you can switch apps or lock the screen. Pause, resume or stop listening through the Android media controls. While a video plays, press Home or use the swipe-home gesture to keep watching in a floating window. Pausing first keeps the player on its page. You can also tap **Picture in picture** on the video page. Android must allow picture-in-picture for EchoOffGrid. Force-stopping the app ends active work. Interrupted downloads rejoin the queue on the next launch.
 
 ## Building the populated preview

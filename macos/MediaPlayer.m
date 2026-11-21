@@ -17,6 +17,9 @@ typedef struct {
     void (*seek)(void *,float);
     int (*playing)(void *);
     int (*state)(void *);
+    int64_t (*length)(void *);
+    int64_t (*time)(void *);
+    void (*setTime)(void *,int64_t);
 } PlayerAPI;
 
 @interface EchoMovieView : NSView
@@ -27,6 +30,9 @@ typedef struct {
 @property NSSlider *slider;
 @property NSButton *toggle;
 @property NSTimer *timer;
+@property(copy) void (^progress)(int64_t,int64_t,BOOL);
+@property int64_t start;
+@property NSTimeInterval lastReport;
 @end
 
 @implementation EchoMovieView
@@ -34,6 +40,7 @@ typedef struct {
     [self.timer invalidate];
     self.timer = nil;
     if (self.player) {
+        if(self.progress && !self.start && self.api.length(self.player)>0)self.progress(self.api.time(self.player),self.api.length(self.player),NO);
         self.api.stop(self.player);
         self.api.setView(self.player,NULL);
         self.api.releasePlayer(self.player);
@@ -56,6 +63,14 @@ typedef struct {
 }
 - (void)seek { self.api.seek(self.player,self.slider.floatValue); }
 - (void)refresh {
+    if(self.progress && self.api.length(self.player)>0){
+        int64_t duration=self.api.length(self.player);
+        if(self.start && self.api.playing(self.player)){self.api.setTime(self.player,self.start);self.start=0;}
+        else if(self.api.state(self.player)==6){self.progress(duration,duration,YES);self.progress=nil;[self closeMovie];return;}
+        else if(self.api.playing(self.player) && NSDate.timeIntervalSinceReferenceDate-self.lastReport>3){
+            self.progress(self.api.time(self.player),duration,NO);self.lastReport=NSDate.timeIntervalSinceReferenceDate;
+        }
+    }
     if (self.api.state(self.player)==7) { self.toggle.title=@"Retry playback"; return; }
     self.toggle.title=self.api.playing(self.player)?@"Pause":@"Play";
     if (!self.slider.cell.isHighlighted) self.slider.floatValue=self.api.position(self.player);
@@ -63,6 +78,9 @@ typedef struct {
 @end
 
 BOOL EchoPlayMedia(NSView *host, NSURL *mediaURL, NSURL *vlcApp) {
+    return EchoPlayEpisode(host,mediaURL,vlcApp,0,nil);
+}
+BOOL EchoPlayEpisode(NSView *host, NSURL *mediaURL, NSURL *vlcApp,int64_t start,void (^progress)(int64_t,int64_t,BOOL)) {
     NSURL *library=[vlcApp URLByAppendingPathComponent:@"Contents/MacOS/lib/libvlc.5.dylib"];
     // Load native code only from a signed VideoLAN distribution.
     SecStaticCodeRef code=NULL;
@@ -85,9 +103,10 @@ BOOL EchoPlayMedia(NSView *host, NSURL *mediaURL, NSURL *vlcApp) {
     LOAD(play,"media_player_play") LOAD(pause,"media_player_pause") LOAD(stop,"media_player_stop")
     LOAD(position,"media_player_get_position") LOAD(seek,"media_player_set_position")
     LOAD(playing,"media_player_is_playing") LOAD(state,"media_player_get_state")
+    LOAD(time,"media_player_get_time") LOAD(length,"media_player_get_length") LOAD(setTime,"media_player_set_time")
 #undef LOAD
     EchoMovieView *view=[[EchoMovieView alloc] initWithFrame:host.bounds];
-    view.api=api;
+    view.api=api;view.start=start;view.progress=progress;
     const char *opts[]={"--ignore-config","--no-video-title-show","--no-media-library"};
     NSURL *plugins=[vlcApp URLByAppendingPathComponent:@"Contents/MacOS/plugins"];
     setenv("VLC_PLUGIN_PATH",plugins.fileSystemRepresentation,1);

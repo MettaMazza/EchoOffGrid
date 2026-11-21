@@ -251,6 +251,9 @@
 })();
 
 const mainVideo = document.querySelector('main video[controls]');
+const playbackQuery=new URLSearchParams(location.search);
+const startPlayback=playbackQuery.has('play') ||
+  (playbackQuery.has('autoplay') && document.cookie.split('; ').includes('echo_autoplay=1'));
 if (mainVideo) {
   if(window.echoVideo){
     const report = () => window.echoVideo.postMessage(JSON.stringify({
@@ -270,31 +273,128 @@ if (mainVideo) {
     });
     playerLink.after(' ',small);
   }
+  let nativeAttempted=false;
   const offerNativePlayer = () => {
     if (!playerLink || !mainVideo.error) return;
     mainVideo.hidden = true;
     playerLink.classList.add('button');
     playerLink.textContent = 'Play this video in the built-in player';
+    if(startPlayback && mainVideo.closest('[data-series]') && !nativeAttempted && mainVideo.error.code===4){
+      nativeAttempted=true;setTimeout(()=>playerLink.click(),0);
+    }
   };
   mainVideo.addEventListener('error', offerNativePlayer);
   offerNativePlayer();
 }
 const autoplay = document.querySelector('#video-autoplay');
-if (mainVideo && autoplay) {
+if (autoplay) {
   autoplay.checked = document.cookie.split('; ').includes('echo_autoplay=1');
   autoplay.addEventListener('change', () => {
     document.cookie = 'echo_autoplay=' + Number(autoplay.checked) + '; Path=/; Max-Age=31536000; SameSite=Strict';
   });
-  mainVideo.addEventListener('ended', () => {
-    const next = autoplay.closest('.up-next').dataset.next;
-    if (autoplay.checked && next) location.assign(next + '?autoplay=1');
-  });
 }
-if (mainVideo && new URLSearchParams(location.search).get('autoplay') === '1') {
-  const clean = new URL(location.href);
-  clean.searchParams.delete('autoplay');
-  history.replaceState(history.state, '', clean);
-  if (autoplay?.checked) mainVideo.play().catch(() => {});
+function advanceEpisode() {
+  const next=autoplay?.closest('.up-next')?.dataset.next;
+  if(autoplay?.checked && next){
+    const target=new URL(next,location.href);
+    target.searchParams.set('autoplay','1');
+    location.assign(target.href);
+  }
+}
+if(mainVideo){
+  const series=mainVideo.closest('[data-series]');
+  const requested=new URL(location.href);
+  const shouldPlay=startPlayback;
+  if(shouldPlay){
+    requested.searchParams.delete('play');requested.searchParams.delete('autoplay');
+    history.replaceState(history.state,'',requested);
+  }
+  let active=false, last=0, completed=false, stamp=0;
+  function checkpoint(position,duration,finished){
+    if(!series || !Number.isFinite(duration) || duration<=0 || !Number.isFinite(position))return;
+    stamp=Math.max(stamp+1,Date.now());
+    const body=new URLSearchParams({token:document.querySelector('#reader-tools').dataset.token,
+      item:series.dataset.series,part:series.dataset.episode,position:Math.round(Math.min(duration,Math.max(0,position))*1000),
+      duration:Math.round(duration*1000),finished:finished?'1':'0',updated:stamp});
+    return fetch('/episode-progress',{method:'POST',body,keepalive:true}).catch(()=>{});
+  }
+  function save(){if(active && !completed)checkpoint(mainVideo.currentTime,mainVideo.duration,mainVideo.ended);}
+  function begin(){
+    if(series && Number(series.dataset.start)>0)mainVideo.currentTime=Number(series.dataset.start)/1000;
+    if(shouldPlay)mainVideo.play().catch(()=>{});
+  }
+  if(mainVideo.readyState>=1)begin();else mainVideo.addEventListener('loadedmetadata',begin,{once:true});
+  mainVideo.addEventListener('playing',()=>{active=true;completed=false;save();});
+  mainVideo.addEventListener('timeupdate',()=>{if(Date.now()-last>3000){last=Date.now();save();}});
+  for(const event of ['pause','seeked'])mainVideo.addEventListener(event,save);
+  window.addEventListener('pagehide',save);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
+  mainVideo.addEventListener('ended',async()=>{
+    completed=true;
+    await checkpoint(mainVideo.duration,mainVideo.duration,true);
+    advanceEpisode();
+  });
+  if(series){
+    const nativeLink=series.querySelector('a[href^="/player/"]');
+    nativeLink?.addEventListener('click',()=>{
+      const url=new URL(nativeLink.href);
+      url.searchParams.set('at',Math.round(mainVideo.currentTime*1000)||Number(series.dataset.start));
+      nativeLink.href=url.href;mainVideo.pause();active=false;
+    });
+    window.echoSeriesNative=(position,duration,finished,key,part)=>{
+      if(key!==series.dataset.series || String(part)!==series.dataset.episode)return;
+      active=false;completed=finished;
+      if(!finished && mainVideo.readyState>=1)mainVideo.currentTime=position/1000;
+      const saved=checkpoint(position/1000,duration/1000,finished);
+      if(finished)Promise.resolve(saved).then(advanceEpisode);
+    };
+  }
+}
+
+// Keep the delete action outside the title link so activating it never opens the player.
+const managedCards=[...document.querySelectorAll('.category-grid a.item[href^="/content/"]')];
+if(managedCards.length){
+  const dialog=document.createElement('dialog');
+  dialog.className='library-delete-dialog';
+  dialog.innerHTML='<form method="dialog"><h3></h3><p>Delete the files saved on this device for this title, including any downloaded episodes and unfinished transfers?</p><output role="status"></output><div><button value="cancel" autofocus>Cancel</button> <button type="button" class="delete-title">Delete from device</button></div></form>';
+  document.body.append(dialog);
+  let selected=null;
+  const confirm=dialog.querySelector('.delete-title'), message=dialog.querySelector('output');
+  confirm.onclick=async()=>{
+    if(!selected || confirm.disabled)return;
+    const {key,wrapper}=selected;
+    confirm.disabled=true;
+    try {
+      const result=await fetch('/download/remove',{method:'POST',headers:{Accept:'application/json'},body:new URLSearchParams({
+        token:document.querySelector('#reader-tools').dataset.token,item:key
+      })});
+      if(!result.ok)throw Error('Could not delete this title. Please try again.');
+      const data=await result.json();
+      const notice=document.querySelector('#match-count');
+      if(data.queued){
+        const button=wrapper.querySelector('.grid-delete');
+        button.textContent='Removal queued';button.disabled=true;
+      }else wrapper.remove();
+      dialog.close();
+      if(notice instanceof HTMLElement)notice.textContent=data.queued?'Removal queued.':'Title deleted from this device.';
+    }catch(error){message.textContent=error.message;}
+    finally{confirm.disabled=false;}
+  };
+  for(const card of managedCards){
+    const key=card.pathname.slice('/content/'.length);
+    if(!/^(?:personal-)?[a-f0-9]{64}$/.test(key))continue;
+    const title=card.querySelector('strong')?.textContent || card.textContent.trim();
+    const wrapper=document.createElement('div');wrapper.className='managed-grid-item';
+    card.before(wrapper);wrapper.append(card);
+    const button=document.createElement('button');
+    button.className='grid-delete';button.type='button';button.textContent='Delete';
+    button.setAttribute('aria-label','Delete '+title);
+    button.onclick=()=>{
+      selected={key,wrapper};dialog.querySelector('h3').textContent='Delete '+title+'?';
+      message.textContent='';dialog.showModal();
+    };
+    wrapper.append(button);
+  }
 }
 
 const importForm=document.querySelector('.personal-import');

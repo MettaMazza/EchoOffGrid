@@ -23,6 +23,14 @@ public class Main extends Activity {
     }
     private Playback.Queue assembling;
     private WebView browser;
+    private static java.lang.ref.WeakReference<Main> currentActivity=new java.lang.ref.WeakReference<>(null);
+    static void seriesPosition(Uri uri,long position,long duration,boolean ended){
+        Main main=currentActivity.get();
+        if(main==null || main.browser==null || main.isDestroyed() || duration<=0)return;
+        String key=uri.getLastPathSegment(), part=uri.getQueryParameter("part");
+        if(key==null || !key.matches("(?:personal-)?[a-f0-9]{64}") || part==null || !part.matches("[0-9]{1,8}"))return;
+        main.browser.evaluateJavascript("window.echoSeriesNative?.("+position+","+duration+","+ended+",'"+key+"',"+part+")",null);
+    }
     private ValueCallback<Uri[]> picker;
     private String exportUrl;
     private String vpnCountry = "";
@@ -188,6 +196,7 @@ public class Main extends Activity {
 
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        currentActivity=new java.lang.ref.WeakReference<>(this);
         RestoreVpn.restore(this);
         if (RestoreVpn.wanted(this)) offerVpnNotifications();
         TextView status = new TextView(this);
@@ -289,6 +298,10 @@ public class Main extends Activity {
             }
         });
         browser.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view,String url){
+                super.onPageFinished(view,url);
+                if(isInPictureInPictureMode())view.evaluateJavascript("document.documentElement.classList.add('video-pip')",null);
+            }
             @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){
                 setInlinePlayback(false,0,0);
                 super.onPageStarted(view,url,icon);

@@ -167,6 +167,7 @@ LIVE_UPDATES = """
         let shown = 0;
         document.querySelectorAll('.shelf .item').forEach(item => {
             item.hidden = !item.textContent.toLowerCase().includes(filter.value.trim().toLowerCase());
+            if (item.parentElement.classList.contains("managed-grid-item")) item.parentElement.hidden=item.hidden;
             if (!item.hidden) shown++;
         });
         document.querySelector('#match-count').textContent = shown + ' matching titles';
@@ -386,7 +387,7 @@ class Downloads:
                 file.unlink(missing_ok=True)
                 (root/".thumbnails"/(file.name+".jpg")).unlink(missing_ok=True)
         db.execute("INSERT OR IGNORE INTO removed_item VALUES(?)",(key,))
-        for table in ("discovery_file","series_parts","discovery_cart","remove_download"):
+        for table in ("discovery_file","series_parts","episode_progress","discovery_cart","remove_download"):
             db.execute(f"DELETE FROM {table} WHERE id=?",(key,))
         db.execute("UPDATE discovery_item SET filename=NULL WHERE id=?",(key,))
         for table,col in (("content_download","source"),("download_backoff","source"),("transfer_progress","id")):
@@ -496,6 +497,14 @@ class WorkspaceServer(ThreadingHTTPServer):
             self.news.close()
 
 
+VIDEO_SHELF_PROGRESS = """SELECT id,round(100*avg(CASE WHEN finished THEN 1.0
+    ELSE coalesce(1.0*position_ms/nullif(duration_ms,0),0) END)) AS watched
+    FROM series_parts LEFT JOIN episode_progress USING(id,title) GROUP BY id"""
+
+def episode_meter(percent):
+    if not percent:return ""
+    return f'<progress class="episode-progress" value="{int(percent)}" max="100" aria-label="{int(percent)}% watched"></progress>'
+
 class Dashboard(BaseHTTPRequestHandler):
     def local_request(self):
         return self.headers.get("Host") == f"127.0.0.1:{self.server.server_port}"
@@ -546,7 +555,7 @@ class Dashboard(BaseHTTPRequestHandler):
         features = "".join(f'<a class=tile href="{url}"><strong>{title}</strong><small>{detail}</small></a>' for url,title,detail in tiles)
         sections = []
         with closing(connect(self.server.database)) as db:
-            downloaded = db.execute("SELECT id,title,kind FROM discovery_item WHERE filename IS NOT NULL ORDER BY title").fetchall()
+            downloaded = db.execute(f"SELECT id,title,kind,watched FROM discovery_item LEFT JOIN ({VIDEO_SHELF_PROGRESS}) USING(id) WHERE filename IS NOT NULL ORDER BY title").fetchall()
         for kind in ("watch","shows","books","listen"):
             name = GROUPS[kind][0]
             extra = self.download_cards(kind, (row for row in downloaded if row["kind"] == CATALOG_KINDS[kind]))
@@ -620,6 +629,8 @@ class Dashboard(BaseHTTPRequestHandler):
                 thumb = f'<span class=thumb data-clip="{src}"><img alt="" loading=lazy src="/content-poster/{row["id"]}"></span>'
             if row["id"].startswith("personal-"):
                 thumb=self.personal_thumb(row["id"],row["title"],personal_library.SHELVES[kind])
+            if "watched" in row.keys() and row["watched"]:
+                thumb=thumb.removesuffix("</span>")+episode_meter(row["watched"])+"</span>"
             cards.append(f'<a class=item href="{url}">{thumb}<strong>{escape(row["title"])}</strong></a>')
         return "".join(cards)
 
@@ -684,7 +695,7 @@ class Dashboard(BaseHTTPRequestHandler):
         saved = []
         if catalogue:
             with closing(connect(self.server.database)) as db:
-                saved=db.execute("SELECT id,title FROM discovery_item WHERE kind=? AND filename IS NOT NULL ORDER BY title",(catalogue,)).fetchall()
+                saved=db.execute(f"SELECT id,title,watched FROM discovery_item LEFT JOIN ({VIDEO_SHELF_PROGRESS}) USING(id) WHERE kind=? AND filename IS NOT NULL ORDER BY title",(catalogue,)).fetchall()
         if kind in {"pictures","guides","maps","documents"}:
             with closing(connect(self.server.database)) as db:
                 rows=db.execute("SELECT id,kind,title FROM discovery_item WHERE kind=? AND filename IS NOT NULL ORDER BY title",(name,)).fetchall()
@@ -744,11 +755,28 @@ class Dashboard(BaseHTTPRequestHandler):
         with closing(connect(self.server.database)) as db:
             row=db.execute("SELECT * FROM discovery_item WHERE id=? AND filename IS NOT NULL",(key,)).fetchone()
             files=db.execute("SELECT * FROM discovery_file WHERE id=? ORDER BY sequence",(key,)).fetchall()
-            episodes=db.execute("SELECT sequence,title FROM series_parts WHERE id=? ORDER BY sequence",(key,)).fetchall()
+            episodes=[] if raw or cover else db.execute("""
+                SELECT s.sequence,s.title,p.position_ms,p.duration_ms,p.finished,p.updated
+                FROM series_parts s LEFT JOIN episode_progress p ON p.id=s.id AND p.title=s.title
+                WHERE s.id=? ORDER BY s.sequence""",(key,)).fetchall()
         if not row:
             self.send_error(404)
             return
         collection_view=bool(episodes and sequence is None and not raw and not cover)
+        ready={item["sequence"] for item in files}
+        if collection_view:
+            latest=max((i for i,ep in enumerate(episodes) if ep["updated"] and ep["sequence"] in ready),
+                       key=lambda i:episodes[i]["updated"],default=0)
+            resume=latest+1 if episodes[latest]["finished"] else latest
+            if resume==len(episodes):resume=0
+            resume_part=episodes[resume]["sequence"]
+            if ("echo_autoplay=1" in self.headers.get("Cookie","").split("; ")
+                and "episodes" not in parse_qs(urlsplit(self.path).query) and resume_part in ready):
+                self.send_response(302)
+                self.send_header("Cache-Control","no-store")
+                self.send_header("Location",f"/content/{key}?part={resume_part}&autoplay=1")
+                self.end_headers()
+                return
         if sequence is None:
             sequence=files[0]["sequence"] if files else 0
         selected=next((v for v in files if v["sequence"]==sequence),None)
@@ -790,10 +818,11 @@ class Dashboard(BaseHTTPRequestHandler):
         if key == discovery.ZIP_ID:
             body = '<label>Open a local ZIP <input id="inspect-zip" type="file" accept=".zip,application/zip"></label><p id="zip-summary" role="status"></p><ol id="zip-entries"></ol>'
         elif path.suffix in {".mp4",".m4v",".mov",".mkv",".webm",".ogv",".avi"}:
+            series_flag="&amp;series=1" if episodes else ""
             body = (f'<video controls playsinline preload="metadata" poster="/content-poster/{key}?part={sequence}" src="{source}"></video>'
-                    f'<p><a href="/player/content/{key}?part={sequence}">Play with the in-app VLC player</a></p>')
+                    f'<p><a href="/player/content/{key}?part={sequence}{series_flag}">Play with the in-app VLC player</a></p>')
             if episodes and selected:body=f'<h3>{escape(Path(selected["title"]).stem)}</h3>'+body
-            body += self.up_next("/content/"+key)
+            if not episodes:body += self.up_next("/content/"+key)
         elif path.suffix in {".ogg",".oga",".mp3",".aac",".flac",".m4a",".wav"}:
             body=f'<audio controls src="{source}"></audio>'
         elif row["kind"]=="Pictures" and path.suffix in {".jpg",".jpeg",".webp",".png",".gif"}:
@@ -823,24 +852,38 @@ class Dashboard(BaseHTTPRequestHandler):
                 body += f'<p><a href="/personal-launch/{key}">Launch installed app</a></p>'
         playlist = "".join(f'<a href="/content/{key}?part={f["sequence"]}">{escape(f["title"])}</a>' for n,f in enumerate(files)) if len(files)>1 else ""
         if episodes:
-            ready={v["sequence"] for v in files}
             cards=[]
+            upcoming=[]
+            next_part=None
+            current=next((ep for ep in episodes if ep["sequence"]==sequence),None)
             for index,ep in enumerate(episodes):
                 n=ep["sequence"]
                 label=escape(Path(ep["title"]).stem)
                 if n in ready:
-                    poster=f'/content-poster/{key}?part={n}'
-                    loading="eager" if index<4 else "lazy"
-                    cards.append(f'<li><a class="item" href="/content/{key}?part={n}"><span class="thumb"><img loading="{loading}" src="{poster}" alt=""></span><strong>{label}</strong></a></li>')
+                    percent=100 if ep["finished"] else round(100*(ep["position_ms"] or 0)/(ep["duration_ms"] or 1))
+                    progress=episode_meter(percent)
+                    loading="eager" if index<4 or n==sequence+1 else "lazy"
+                    card=(f'<a class="item" href="/content/{key}?part={n}&amp;play=1"><span class="thumb">'
+                          f'<img loading="{loading}" src="/content-poster/{key}?part={n}" alt="">{progress}</span><strong>{label}</strong></a>')
                 else:
-                    cards.append(f'<li class="episode-pending"><strong>{label}</strong><small>Pending download</small></li>')
-            cover=f"/content-poster/{quote(key,safe='')}?part={files[0]['sequence'] if files else 0}"
-            grid=f'<section aria-label="Episodes" style="--collection-cover:url({cover})"><h3>Episodes · {len(ready)} of {len(episodes)} saved</h3><ol class="episode-grid">{"".join(cards)}</ol></section>'
+                    card=f'<span class="episode-pending"><strong>{label}</strong><small>Pending download</small></span>'
+                cards.append('<li>'+card+'</li>')
+                if n>sequence:
+                    if not upcoming and n in ready:next_part=n
+                    upcoming.append(card)
+            grid=f'<section aria-label="Episodes" style="--collection-cover:url(/content-poster/{key}?part={sequence})"><h3>Episodes · {len(ready)} of {len(episodes)} saved</h3><ol class="episode-grid">{"".join(cards)}</ol></section>'
+            toggle='<label class="autoplay-control">Autoplay <input type=checkbox role=switch id=video-autoplay><span class="switch-track" aria-hidden=true></span></label>'
             playlist=""
             if collection_view:
-                body=f'<img class="series-hero" src="/content-poster/{key}?part={sequence}" alt="">{grid}'
-            else:
-                body=f'<p><a href="/content/{key}">All episodes</a></p>{body}{grid}'
+                resume_link=f'<a class="button" href="/content/{key}?part={resume_part}&amp;play=1">{"Resume" if episodes[resume]["position_ms"] and not episodes[resume]["finished"] else "Play"} · {escape(Path(episodes[resume]["title"]).stem)}</a>' if resume_part in ready else ''
+                body=f'<img class="series-hero" src="/content-poster/{key}?part={sequence}" alt=""><div class="section-head">{resume_link}{toggle}</div>{grid}'
+            elif current:
+                start=0 if current["finished"] else current["position_ms"] or 0
+                next_url=f'/content/{key}?part={next_part}' if next_part is not None else ''
+                queue=carousel("Upcoming episodes","".join(upcoming),"shelf watch") if upcoming else '<p>End of series</p>'
+                body=(f'<p><a href="/content/{key}?episodes=1">All episodes</a></p>'
+                      f'<section data-series="{key}" data-episode="{sequence}" data-start="{start}">{body}</section>'
+                      f'<section class="up-next" data-next="{next_url}"><div class="section-head"><h3>Up next</h3>{toggle}</div>{queue}</section>')
         remove=self.remove_form(key)
         if row["provider"]=="Internet Archive" and row["kind"] in ("Films","Shows"):
             remove+=f'<form method=post action="/discover/add"><input type=hidden name=token value="{self.server.token}"><input type=hidden name=item value="{key}"><button>Check for missing episodes</button></form>'
@@ -1604,7 +1647,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if self.local_request() and self.path == "/evidence/import":
             self.import_evidence()
             return
-        if not self.local_request() or self.path not in {"/openintel/action", "/download/remove", "/download/cancel", "/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
+        if not self.local_request() or self.path not in {"/openintel/action", "/episode-progress", "/download/remove", "/download/cancel", "/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
             self.send_error(403)
             return
         length = self.headers.get("Content-Length", "")
@@ -1630,6 +1673,20 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                 db.execute("DELETE FROM download_backoff WHERE source=?",(source,))
             self.server.downloads.wakeup.set()
             self.send_response(303);self.send_header("Location","/downloads");self.end_headers();return
+        if self.path == "/episode-progress":
+            try:
+                key=fields["item"][0]
+                part,position,duration,updated=(int(fields[k][0]) for k in ("part","position","duration","updated"))
+                if not (0<=position<=duration<=2**48 and duration>0 and 0<updated<2**53):raise ValueError()
+                with closing(connect(self.server.database)) as db,db:
+                    db.execute("""INSERT INTO episode_progress
+                        SELECT id,title,?,?,?,? FROM discovery_file WHERE id=? AND sequence=?
+                        ON CONFLICT(id,title) DO UPDATE SET position_ms=excluded.position_ms,duration_ms=excluded.duration_ms,
+                        finished=excluded.finished,updated=excluded.updated WHERE excluded.updated>=episode_progress.updated""",
+                        (position,duration,int(fields.get("finished",["0"])[0]=="1"),updated,key,part))
+            except (KeyError,ValueError,OverflowError):
+                self.send_error(400);return
+            self.send_response(204);self.end_headers();return
         if self.path == "/download/remove":
             key=fields.get("item",[""])[0]
             if not re.fullmatch(r"(?:personal-)?[0-9a-f]{64}",key):
@@ -1637,11 +1694,14 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
             with closing(connect(self.server.database)) as db,db:
                 db.execute("BEGIN IMMEDIATE")
                 job=db.execute("SELECT state FROM content_download WHERE source=?",("discover-"+key,)).fetchone()
-                if job and job[0]=="Downloading":
+                queued=bool(job and job[0]=="Downloading")
+                if queued:
                     db.execute("INSERT OR IGNORE INTO remove_download VALUES(?)",(key,))
                 else:
                     self.server.downloads.remove_local(db,self.server.database.parent/"Content",key)
             self.server.downloads.wakeup.set()
+            if self.headers.get("Accept")=="application/json":
+                intel_screen.respond(self,{"queued":queued});return
             self.send_response(303);self.send_header("Location","/downloads");self.end_headers();return
         if self.path == "/openintel/action":
             intel_screen.write(self,fields);return

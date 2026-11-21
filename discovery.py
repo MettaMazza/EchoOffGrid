@@ -124,6 +124,7 @@ def search(kind, query, page):
 def init(db):
     db.execute("CREATE TABLE IF NOT EXISTS discovery_cart(id TEXT PRIMARY KEY REFERENCES discovery_item(id))")
     db.execute("CREATE TABLE IF NOT EXISTS transfer_progress(id TEXT PRIMARY KEY,received INTEGER,total INTEGER)")
+    db.execute("CREATE TABLE IF NOT EXISTS episode_progress(id TEXT,title TEXT,position_ms INTEGER,duration_ms INTEGER,finished INTEGER,updated INTEGER,PRIMARY KEY(id,title))")
     db.execute("CREATE TABLE IF NOT EXISTS series_parts(id TEXT,sequence INTEGER,title TEXT,PRIMARY KEY(id,sequence))")
     db.execute("CREATE TABLE IF NOT EXISTS cancelled_transfer(source TEXT PRIMARY KEY)")
     db.execute("CREATE TABLE IF NOT EXISTS removed_item(id TEXT PRIMARY KEY)")

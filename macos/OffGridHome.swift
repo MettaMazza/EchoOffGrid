@@ -750,7 +750,18 @@ struct WorkspaceWebView: NSViewRepresentable {
                 let bookmark = UserDefaults.standard.data(forKey: "echoOffGridKitBookmark")
                 let kit = bookmark.flatMap { try? URL(resolvingBookmarkData: $0, options: .withoutUI, relativeTo: nil, bookmarkDataIsStale: &stale) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/OffGrid/OffGrid Kit")
                 let apps = [Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/VLC.app"), kit.appendingPathComponent("Apps/VLC.app"), URL(fileURLWithPath: "/Applications/VLC.app")]
-                if !apps.contains(where: { EchoPlayMedia(webView.superview ?? webView, stream, $0) }) {
+                let query = URLComponents(url:url,resolvingAgainstBaseURL:true)?.queryItems ?? []
+                let episode = query.contains { $0.name=="series" && $0.value=="1" } && path.hasPrefix("/player/content/")
+                let start = max(0,Int64(query.first { $0.name=="at" }?.value ?? "") ?? 0)
+                let opened = apps.contains { app in
+                    let host=webView.superview ?? webView
+                    guard episode else {return EchoPlayMedia(host,stream,app)}
+                    let part=Int(query.first { $0.name=="part" }?.value ?? "") ?? 0
+                    return EchoPlayEpisode(host,stream,app,start){ [weak webView] position,duration,finished in
+                        webView?.evaluateJavaScript("window.echoSeriesNative?.(\(position),\(duration),\(finished), '\(url.lastPathComponent)', \(part))")
+                    }
+                }
+                if !opened {
                     let alert = NSAlert()
                     alert.messageText = "The video player needs VLC."
                     alert.informativeText = "Install the signed VideoLAN VLC app in Applications or your kit’s Apps folder."

@@ -11,8 +11,8 @@ jar cf "$out/classes.jar" -C "$out/classes" .
 "$build/d8" --min-api 28 --lib "$jar" --output "$out/dex" "$out/classes.jar"
 "$build/aapt2" link -I "$jar" --manifest android/qa/AndroidManifest.xml -o "$out/check.apk"
 mkdir -p "$out/test-assets/assets"
-cp android/qa/{cases,geography}.js "$out/test-assets/assets/"
-(cd "$out/test-assets" && zip -q "$out/check.apk" assets/cases.js assets/geography.js)
+cp vendor/library-samples/show.mp4 android/qa/{cases,geography,series-playback}.js "$out/test-assets/assets/"
+(cd "$out/test-assets" && zip -q "$out/check.apk" assets/cases.js assets/geography.js assets/series-playback.js assets/show.mp4)
 (cd "$out/dex" && zip -q "$out/check.apk" classes.dex)
 "$build/zipalign" -f 4 "$out/check.apk" "$out/aligned.apk"
 "$build/apksigner" sign --ks dist/android/review.jks --ks-pass pass:android --out "$out/checks.apk" "$out/aligned.apk"

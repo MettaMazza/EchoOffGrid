@@ -16,6 +16,8 @@ import java.util.regex.*;
 public final class PhoneVpn extends VpnService {
     static volatile String state = "Off";
     static volatile boolean enabled;
+    static volatile String activeCountry = "";
+    static final String REGION = "dev.echooffgrid.mobile.VPN_REGION";
     static final String CONNECT = "dev.echooffgrid.mobile.CONNECT_VPN";
     static final String RESTORE = "dev.echooffgrid.mobile.RESTORE_VPN";
     static final String DISCONNECT = "dev.echooffgrid.mobile.DISCONNECT_VPN";
@@ -62,12 +64,21 @@ public final class PhoneVpn extends VpnService {
             stopSelf(id);
             return START_NOT_STICKY;
         }
-        if (enabled) return START_STICKY;
+        String country = intent == null ? null : intent.getStringExtra("country");
+        if (country != null && country.matches("[a-z]{2}|")) {
+            getSharedPreferences("vpn",0).edit().putString("country",country).commit();
+        }
+        if (enabled) {
+            if (!activeCountry.equals(getSharedPreferences("vpn",0).getString("country",""))) reconnect();
+            return START_STICKY;
+        }
+        if (intent != null && REGION.equals(intent.getAction())) {
+            stopSelf(id);
+            return START_NOT_STICKY;
+        }
         state = "Connecting";
         startForeground(42, notification());
         enabled = true;
-        String country = intent == null ? null : intent.getStringExtra("country");
-        if (country != null && country.matches("[a-z]{2}|")) getSharedPreferences("vpn",0).edit().putString("country",country).apply();
         try {
             tunnel = new Builder().setSession("EchoOffGrid · Tor").setMtu(1500)
                     .addAddress("198.18.0.1", 32).addAddress("fd19:ec40::1", 128)
@@ -87,6 +98,7 @@ public final class PhoneVpn extends VpnService {
             data.mkdirs();
             File config = new File(folder, "torrc");
             String country = getSharedPreferences("vpn",0).getString("country","");
+            activeCountry = country;
             String settings = "DataDirectory "+data+"\nSocksPort 127.0.0.1:auto\nSocksPort unix:"+new File(folder,"s")+
                     "\nHTTPSProxy 127.0.0.1:"+uplink.listener.getLocalPort()+"\nHTTPSProxyAuthenticator "+uplink.credential+
                     "\nClientRejectInternalAddresses 1\nSafeLogging 1\nLog notice stdout\n__OwningControllerProcess "+android.os.Process.myPid()+"\n";
@@ -143,7 +155,8 @@ public final class PhoneVpn extends VpnService {
         if (tor != null) tor.destroyForcibly();
         TProxyService.TProxyStopService();
         status("Reconnecting · traffic blocked");
-        handler.postDelayed(this::launchTor, 3000);
+        final int pending = generation;
+        handler.postDelayed(() -> { if (enabled && pending == generation) launchTor(); }, 3000);
     }
 
     @Override public void onRevoke() { handler.post(() -> {

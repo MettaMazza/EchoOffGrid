@@ -14,11 +14,70 @@
   const savedFrames=new Map();
   function frameKey(r){return [r.id,region(),date.value].join('|')}
   async function action(fields){
-    const body=new URLSearchParams({...fields,token:document.querySelector('#reader-tools').dataset.token,region:region()});
+    const body=new URLSearchParams({region:region(),...fields,token:document.querySelector('#reader-tools').dataset.token});
     const reply=await fetch('/openintel/action',{method:'POST',body});
     const data=await reply.json();if(!reply.ok)throw Error(data.error||'Publisher unavailable');return data
   }
   function anchor(label,url){const a=node('a',label);a.href=url;return a}
+  const comparison = el('compare-dates'), frames = el('compare-frames'), message = el('compare-status');
+  let comparisonVersion = 0;
+  for (const [name, days] of [['earlier', 2], ['later', 1]]) {
+    comparison.elements[name].max = date.max;
+    comparison.elements[name].value = new Date(Date.now() - days * 86400000).toISOString().slice(0,10);
+  }
+  function resetComparison() {
+    comparisonVersion++;
+    message.textContent = '';
+    frames.replaceChildren();
+  }
+  comparison.oninput = resetComparison;
+  document.addEventListener('intel-region-change',resetComparison);
+  comparison.onsubmit = async event => {
+    event.preventDefault();
+    resetComparison();
+    const version = comparisonVersion;
+    const {earlier,later,sensor} = comparison.elements;
+    if (earlier.value >= later.value) {
+      message.textContent = 'Choose two different days in chronological order.';
+      return;
+    }
+    const place = region(), instrument = sensor.value, label = sensor.selectedOptions[0].text;
+    message.textContent = 'NASA GIBS · '+label+' · '+el('intel-region').selectedOptions[0].text+
+      '. Each image combines observations over one UTC day. Clouds and missing swaths can obscure changes.';
+    await Promise.all([earlier.value,later.value].map(async day => {
+      const figure = document.createElement('figure');
+      frames.append(figure);
+      const heading = node('h4',day+' UTC'), details = node('p','Checking local archive…');
+      figure.append(heading,details);
+      async function render() {
+        const params = new URLSearchParams({region:place,sensor:instrument,day});
+        const response = await fetch('/openintel/composite?'+params);
+        const result = await response.json();
+        if (version !== comparisonVersion) return;
+        if (!response.ok) throw Error(result.error || 'Local archive unavailable');
+        if (!result) {
+          details.textContent = 'No local image for this day.';
+          const acquire = button('Fetch and save image',async () => {
+            acquire.disabled = true;
+            try {
+              const capture = await action({action:'visual-frame',id:instrument,day});
+              // Keep the request paired with its original region if the user navigates away.
+              await action({action:'save',region:place,id:capture.id,at:capture.received});
+              await render();
+            } catch (err) {details.textContent = err.message;acquire.disabled = false}
+          });
+          figure.replaceChildren(heading,details,acquire);
+          return;
+        }
+        const image = document.createElement('img');
+        image.src = result.image;image.alt = label+' daily composite for '+day;
+        image.onerror = () => {details.textContent='The stored image could not be displayed.'};
+        details.textContent = 'Retrieved '+stamp(result.received)+' · '+result.projection;
+        figure.replaceChildren(heading,image,details,anchor('Publisher image ↗',result.url));
+      }
+      try {await render()} catch (err) {details.textContent = err.message}
+    }));
+  };
   function show(row){
     const serial=++request;
     pane.replaceChildren(node('small',row.kind+' · '+row.publisher),node('h3',row.title),node('p',row.area));

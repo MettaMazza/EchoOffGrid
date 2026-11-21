@@ -43,6 +43,8 @@ public final class PrivateBrowser extends Activity {
         Button go=new Button(this);go.setText("Go");go.setOnClickListener(v->open());
         controls.addView(back);controls.addView(address,new LinearLayout.LayoutParams(0,-2,1));controls.addView(go);controls.addView(done);
         pane.addView(controls);status=new TextView(this);pane.addView(status);setContentView(pane);
+        Button capture=new Button(this);capture.setText("Capture page to case");
+        capture.setOnClickListener(v->capturePage());pane.addView(capture);
         int port=getIntent().getIntExtra("port",0);
         if(port<1024||port>65535||!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)){
             status.setText("Private browsing needs an up-to-date Android System WebView.");return;
@@ -69,6 +71,41 @@ public final class PrivateBrowser extends Activity {
             if(isFinishing()||isDestroyed())return;
             String destination=getIntent().getStringExtra("url");
             ready=true;address.setText(destination==null ? "https://duckduckgo.com/" : destination);open();
+        });
+    }
+    private void capturePage(){
+        if(!ready || browser.getUrl()==null || !browser.getUrl().startsWith("https://"))return;
+        final String url=browser.getUrl(),title=browser.getTitle();
+        final String captured=java.time.Instant.now().toString();
+        browser.evaluateJavascript("(function(){const html=document.documentElement.outerHTML,text=document.body?.innerText||'';"+
+                "return html.length+text.length<=8000000?{html,text}:null})()",raw->{
+            try{
+                if(!url.equals(browser.getUrl()))throw new java.io.IOException("Page changed. Capture it again.");
+                if(raw==null || raw.equals("null"))throw new java.io.IOException("Page too large or unavailable.");
+                org.json.JSONObject page=new org.json.JSONObject(raw);
+                int w=browser.getWidth(),h=browser.getHeight();
+                if(w<=0 || h<=0)throw new java.io.IOException("No visible browser area.");
+                float scale=Math.min(1f,1600f/Math.max(w,h));
+                android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(Math.max(1,Math.round(w*scale)),
+                    Math.max(1,Math.round(h*scale)),android.graphics.Bitmap.Config.ARGB_8888);
+                try{
+                    android.graphics.Canvas canvas=new android.graphics.Canvas(bitmap);
+                    canvas.scale(scale,scale);canvas.translate(-browser.getScrollX(),-browser.getScrollY());
+                    browser.draw(canvas);
+                    java.io.ByteArrayOutputStream jpg=new java.io.ByteArrayOutputStream();
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG,88,jpg);
+                    page.put("viewport",android.util.Base64.encodeToString(jpg.toByteArray(),android.util.Base64.NO_WRAP));
+                }finally{bitmap.recycle();}
+                page.put("url",url).put("title",title==null?"":title).put("captured",captured);
+                byte[] bytes=page.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                if(bytes.length>15*1024*1024)throw new java.io.IOException("Page exceeds the capture limit.");
+                File file=new File(getCacheDir(),"pending-browser-capture.json");
+                android.util.AtomicFile target=new android.util.AtomicFile(file);
+                java.io.FileOutputStream output=target.startWrite();
+                try{output.write(bytes);target.finishWrite(output);}
+                catch(java.io.IOException err){target.failWrite(output);throw err;}
+                setResult(RESULT_OK);finish();
+            }catch(Exception err){status.setText("Capture unavailable. "+err.getMessage());}
         });
     }
     private void open(){

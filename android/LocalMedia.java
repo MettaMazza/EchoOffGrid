@@ -1,8 +1,8 @@
 package dev.echooffgrid.mobile;
 
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
+import java.net.HttpURLConnection;
+import java.util.concurrent.*;
 import android.graphics.Bitmap;
 import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
@@ -24,12 +24,7 @@ final class LocalMedia {
             int index=Integer.parseInt(uri.getQueryParameter("part")==null?"0":uri.getQueryParameter("part"));
             if(index<0 || !key.matches("[a-zA-Z0-9_-]{1,100}")) throw new IOException("Unknown file");
             base=new File(root,"Content");
-            try(SQLiteDatabase db=SQLiteDatabase.openDatabase(new File(root,"archive.sqlite3").toString(),null,SQLiteDatabase.OPEN_READONLY);
-                Cursor c=db.rawQuery("SELECT coalesce((SELECT filename FROM discovery_file WHERE id=? ORDER BY sequence LIMIT 1 OFFSET ?),filename) FROM discovery_item WHERE id=?",
-                    new String[]{key,String.valueOf(index),key})) {
-                if(!c.moveToFirst() || c.isNull(0))throw new IOException("Missing download");
-                asset=new File(base,c.getString(0));
-            }
+            asset=new File(base,resolveName(context,key,index));
         } else {
             String folder;
             switch(kind) {
@@ -50,21 +45,66 @@ final class LocalMedia {
         return asset;
     }
 
+    // Android and the embedded Python runtime must never open the same WAL with two SQLite libraries.
+    private static final ExecutorService resolver=Executors.newFixedThreadPool(2);
+    private static String resolveName(Context context,String key,int part)throws IOException {
+        Future<String> result=resolver.submit(()->{
+            HttpURLConnection c=Main.connection(context,"/mobile-file-name?id="+key+"&part="+part);
+            c.setRequestProperty("X-Echo-Native","1");c.setReadTimeout(4000);
+            try(BufferedReader in=new BufferedReader(new InputStreamReader(c.getInputStream(),StandardCharsets.UTF_8))){
+                String name=in.readLine();
+                if(name==null || !new File(name).getName().equals(name))throw new IOException("Invalid media file");
+                return name;
+            }finally{c.disconnect();}
+        });
+        try{return result.get(5,TimeUnit.SECONDS);}
+        catch(Exception e){result.cancel(true);throw new IOException("Could not resolve local media",e);}
+    }
+
+    private static boolean hasPicture(Bitmap frame) {
+        int low=255,high=0,lit=0;
+        for(int y=0;y<16;y++)for(int x=0;x<16;x++){
+            int pixel=frame.getPixel(frame.getWidth()*(2*x+1)/32,frame.getHeight()*(2*y+1)/32);
+            int light=(android.graphics.Color.red(pixel)*3+android.graphics.Color.green(pixel)*6+
+                       android.graphics.Color.blue(pixel))/10;
+            low=Math.min(low,light);high=Math.max(high,light);
+            if(light>28)lit++;
+        }
+        return high-low>=24 && lit>=20;
+    }
+
+    private static Bitmap episodeFrame(android.media.MediaMetadataRetriever reader) {
+        String millis=reader.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+        long duration=millis==null?0:Long.parseLong(millis)*1000;
+        long[] times={1500000,5500000,14000000,duration/8,duration/3,duration/2};
+        Bitmap best=null;
+        for(long time:times){
+            long at=duration>0?Math.min(time,duration-1):time;
+            Bitmap frame=reader.getScaledFrameAtTime(at,android.media.MediaMetadataRetriever.OPTION_CLOSEST,640,360);
+            if(frame==null)continue;
+            if(hasPicture(frame)){if(best!=null)best.recycle();return frame;}
+            if(best==null)best=frame;else frame.recycle();
+        }
+        return best;
+    }
+
     static WebResourceResponse poster(Context context,Uri request) throws IOException {
         File video=find(context,request.buildUpon().encodedPath(request.getEncodedPath().replace("/content-poster/","/content-file/")).build());
         File cache=new File(context.getCacheDir(),"posters");
         cache.mkdirs();
-        File picture=new File(cache,video.getName()+"-"+video.lastModified()+".jpg");
+        String base=video.getName()+"-"+video.lastModified();
+        File picture=new File(cache,base+"-v2.jpg");
         if(!picture.isFile()) {
             android.media.MediaMetadataRetriever reader=new android.media.MediaMetadataRetriever();
             try {
                 reader.setDataSource(video.toString());
-                Bitmap frame=reader.getScaledFrameAtTime(1500000,android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC,640,360);
+                Bitmap frame=episodeFrame(reader);
                 if(frame==null) throw new IOException("No video frame available");
                 File tmp=File.createTempFile("poster-",".tmp",cache);
                 try(FileOutputStream out=new FileOutputStream(tmp)){frame.compress(Bitmap.CompressFormat.JPEG,85,out);}
                 finally{frame.recycle();}
                 if(!tmp.renameTo(picture))tmp.delete();
+                if(picture.isFile())new File(cache,base+".jpg").delete();
             } finally {reader.release();}
         }
         return new WebResourceResponse("image/jpeg",null,new FileInputStream(picture));

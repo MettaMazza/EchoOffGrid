@@ -28,6 +28,24 @@
   await until(()=>get('#case-exhibits').children.length===2,'Reopen saved case');
   search.elements.place.value=unique;search.elements.start.value='2000-01-01';search.elements.end.value='2000-01-01';search.requestSubmit();
   await until(()=>get('#case-status').textContent.includes('No retained records'),'Date exclusion');
+  const coverage=get('#case-coverage');
+  coverage.elements.start.value=day+'T00:00';
+  coverage.elements.end.value=day+'T23:59';
+  coverage.requestSubmit();
+  await until(()=>get('#case-coverage-results summary') && get('#case-coverage-results li'),'Source coverage');
+  const relationship=get('#case-relationship');
+  relationship.closest('details').open=true;
+  for(const [key,value] of Object.entries({subject:'Case QA',predicate:'reviewed',object:unique,assessment:'Uncertain',passage:'Synthetic observation for acceptance testing.'}))relationship.elements[key].value=value;
+  relationship.elements.ref.selectedIndex=1;
+  relationship.requestSubmit();
+  await until(()=>get('#case-relationships').textContent.includes('Uncertain'),'Relationship review');
+  const finding=get('#case-finding'), links=finding.querySelectorAll('select');
+  links[0].value='supports'; links[1].value='contradicts';
+  finding.elements.statement.value='Synthetic test finding';
+  finding.elements.unknowns.value='Independent corroboration';
+  finding.requestSubmit();
+  await until(()=>['supports','contradicts','Independent corroboration'].every(t=>get('#case-findings').textContent.includes(t)),'Finding with exhibits');
+  await until(()=>['Retrieved','Finding recorded','Relationship reviewed'].every(t=>get('#case-timeline').textContent.includes(t)),'Case timeline');
   window.caseQA={owner,original};get('#case-export').click();
  } catch(e){window.caseQA={error:String(e)}}
 })();

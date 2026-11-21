@@ -19,3 +19,18 @@
 #case-results button{justify-self:start}
 #case-status{display:block;margin:.8rem 0}
 #case-exhibits details{overflow-wrap:anywhere;padding:.5rem 0}
+
+#case-timeline{list-style:none;padding:0}#case-timeline li{display:grid;gap:.2rem;padding:.5rem .8rem;border-inline-start:2px solid var(--mint,#93deb8)}
+#case-timeline small{opacity:.8}#case-finding textarea{width:100%;min-height:4rem;box-sizing:border-box}#case-findings article{margin-block:.8rem}
+
+#compare-dates{display:flex;flex-wrap:wrap;align-items:end;gap:.75rem;margin:1rem 0}
+#compare-dates label{display:grid;gap:.3rem}
+#compare-frames{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem}
+#compare-frames figure{min-width:0;margin:1rem 0}
+#compare-frames img{width:100%;height:auto;display:block}
+
+#track-history{width:min(38rem,90vw);max-height:80vh;overflow:auto;background:var(--o-panel);color:inherit}
+#track-reports{padding-inline-start:1.8rem}
+#track-reports li{padding:.6rem 0;border-bottom:1px solid #456057}
+#track-reports li>*{display:block;overflow-wrap:anywhere}
+#track-reports em{color:#e6c68e}

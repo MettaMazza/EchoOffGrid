@@ -5,7 +5,7 @@ html,body,#map{margin:0;height:100%;background:#16252e;color:#d5f5df;font:14px s
 </style><title>OpenIntel observation map</title><div id="map"></div><button id="remove-overlay" hidden style="position:absolute;left:8px;top:8px">Hide satellite image</button><output id="note" role="status"></output>
 <script src="vendor/maplibre-gl.js"></script><script src="vendor/pmtiles.js"></script><script src="vendor/basemaps.js"></script><script>
 const empty={type:'FeatureCollection',features:[]};
-let map, latest, region;
+let map, latest, region, landmark;
 let activeBasemap='World';
 async function chooseBasemap(key){
  const name=key==='aberdeen'?'UK':'World';
@@ -70,6 +70,40 @@ addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==parent)
   map.addSource('selected-image',{type:'image',url:item.url,coordinates:[[w,n],[east,n],[east,s],[w,s]]});
   map.addLayer({id:'selected-image',type:'raster',source:'selected-image',paint:{'raster-opacity':0.87}},'trails');
   map.fitBounds([[w,s],[east,n]],{padding:16,duration:0});document.querySelector('#remove-overlay').hidden=false
+ }
+ if(e.data.openintel==='clue-search'){
+  const {query,serial}=e.data.value;
+  if(!map||!map.isStyleLoaded()){tell('clue-results',{serial,error:'Map tiles are still loading. Try again when they are visible.'});return;}
+  const tokens=query.toLowerCase().trim().split(/\s+/).filter(Boolean),bounds=map.getBounds();
+  const rows=[],seen=new Set();
+  for(const f of map.queryRenderedFeatures()){
+   if(f.source!=='world')continue;
+   const p=f.properties||{}, title=p.name||p['name:en']||'',kind=p.kind_detail||p.kind||f.sourceLayer||'';
+   const terms=[title,kind,...Object.entries(p).filter(([k,v])=>v&&v!=='no').map(([k,v])=>k+' '+v)].join(' ').toLowerCase();
+   if(!tokens.every(t=>terms.includes(t)))continue;
+   const coords=f.geometry.coordinates;
+   if(!coords)continue;
+   const todo=[coords];let point;
+   while(todo.length&&!point){
+    const value=todo.pop();
+    if(typeof value[0]==='number'){if(bounds.contains(value))point=value;}
+    else for(const part of value)todo.push(part);
+   }
+   if(!point)continue;
+   const key=[f.sourceLayer,f.id??(title+point[0].toFixed(4)+point[1].toFixed(4))].join('/');
+   if(seen.has(key))continue;
+   seen.add(key);rows.push({title:title||kind,kind,lon:point[0],lat:point[1]});
+   if(rows.length===50)break;
+  }
+  tell('clue-results',{serial,rows,basemap:activeBasemap});
+ }
+ if(e.data.openintel==='landmark'&&map) {
+  const {title,lat,lon}=e.data.value;
+  if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
+  if(landmark)landmark.remove();
+  const popup=new maplibregl.Popup({offset:22}).setText(title);
+  landmark=new maplibregl.Marker({color:'#a2f4d0'}).setLngLat([lon,lat]).setPopup(popup).addTo(map);
+  landmark.togglePopup();map.easeTo({center:[lon,lat],zoom:Math.max(12,map.getZoom())});
  }
  if(e.data.openintel==='locate'&&map){map.easeTo({center:e.data.value,zoom:Math.max(5,map.getZoom())})}
 });

@@ -28,6 +28,24 @@ class PrivateBrowserTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 link_address(target)
 
+    def test_explicit_switch_and_region_survive_session_restart(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root:
+            session = Session(Path(root))
+            session.configure(False, "gb")
+            reopened = Session(Path(root))
+            self.assertEqual((reopened.wanted,reopened.location), (False,"gb"))
+            with patch.object(reopened, "_start") as connect:
+                reopened.configure(True, "se")
+                connect.assert_called_once_with("se")
+            reopened.close()
+            restored = Session(Path(root))
+            self.assertEqual((restored.wanted,restored.location), (True,"se"))
+            with self.assertRaises(ValueError):
+                restored.configure(False, "invalid")
+            restored.configure(False, "se")
+            self.assertFalse(Session(Path(root)).wanted)
+
     def test_reader_result_does_not_relaunch_and_keeps_protected_links(self):
         with tempfile.TemporaryDirectory() as root:
             session=Session(Path(root))

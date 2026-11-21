@@ -9,7 +9,7 @@ import fcntl
 import discovery
 import library_sources
 import spotlight
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from email.utils import parsedate_to_datetime
 import http.client
 import private_browser
@@ -39,7 +39,7 @@ import subprocess
 from tempfile import TemporaryDirectory
 from threading import Event, Lock, Thread
 from time import monotonic
-from urllib.parse import parse_qs, urlencode, urlsplit, unquote
+from urllib.parse import parse_qs, quote, urlencode, urlsplit, unquote
 
 from archive import CATALOG, binary_format, connect, eligible, feed_text, fetch, search
 try:
@@ -327,19 +327,28 @@ class Downloads:
                 SELECT source,title,CASE WHEN state='Interrupted: ' || quote(source) OR state='Downloading'
                     THEN 'Queued' ELSE state END FROM pending_download WHERE source LIKE 'discover-%'""")
             database.execute("DELETE FROM pending_download WHERE source LIKE 'discover-%'")
+            database.execute("CREATE TABLE IF NOT EXISTS chosen_download(source TEXT PRIMARY KEY,title TEXT NOT NULL,snapshot_id INTEGER)")
+            database.execute("CREATE TABLE IF NOT EXISTS chosen_feed_job(source TEXT PRIMARY KEY)")
+            database.execute("CREATE TRIGGER IF NOT EXISTS clear_chosen_feed AFTER DELETE ON pending_download BEGIN DELETE FROM chosen_feed_job WHERE source=OLD.source; END")
+            database.execute("INSERT OR IGNORE INTO chosen_download(source,title) SELECT source,title FROM content_download")
         self.worker = Thread(target=self.run, daemon=True, name="EchoOffGrid downloads")
         self.worker.start()
 
     @staticmethod
     def enqueue(database, sources):
         for item in sources:
+            database.execute("INSERT OR IGNORE INTO chosen_download(source,title) VALUES(?,?)",(item["id"],item["title"]))
+            if not item["id"].startswith("discover-"):
+                database.execute("INSERT OR IGNORE INTO chosen_feed_job VALUES(?)",(item["id"],))
+            database.execute("DELETE FROM cancelled_transfer WHERE source=?",(item["id"],))
             table = "content_download" if item["id"].startswith("discover-") else "pending_download"
             database.execute(f"""INSERT INTO {table}(source,title) VALUES(?,?)
                 ON CONFLICT(source) DO UPDATE SET state='Queued'
                 WHERE state NOT IN ('Queued','Downloading')""",(item["id"],item["title"]))
 
     def progress(self, database):
-        return database.execute("""SELECT jobs.source,title,state,received,total,b.due AS retry_due FROM (
+        return database.execute("""SELECT jobs.source,title,state,received,total,b.due AS retry_due,
+            (jobs.source LIKE 'discover-%' OR EXISTS(SELECT 1 FROM chosen_feed_job m WHERE m.source=jobs.source)) AS chosen FROM (
             SELECT * FROM pending_download UNION ALL SELECT * FROM content_download
         ) jobs LEFT JOIN transfer_progress ON transfer_progress.id=jobs.source LEFT JOIN download_backoff b ON b.source=jobs.source ORDER BY jobs.id""").fetchall()
 
@@ -367,6 +376,22 @@ class Downloads:
                     INSERT OR IGNORE INTO pending_download(source,title) VALUES (?,?)
                 """, (source_id, source["title"]))
 
+    @staticmethod
+    def remove_local(db,root,key):
+        if not re.fullmatch(r"(?:personal-)?[0-9a-f]{64}",key):
+            raise ValueError("Invalid library item")
+        # Managed files use this exact key followed by an extension or a part suffix.
+        for file in root.glob(key+"*"):
+            if file.name.startswith((key+".",key+"-")) and file.is_file():
+                file.unlink(missing_ok=True)
+                (root/".thumbnails"/(file.name+".jpg")).unlink(missing_ok=True)
+        db.execute("INSERT OR IGNORE INTO removed_item VALUES(?)",(key,))
+        for table in ("discovery_file","series_parts","discovery_cart","remove_download"):
+            db.execute(f"DELETE FROM {table} WHERE id=?",(key,))
+        db.execute("UPDATE discovery_item SET filename=NULL WHERE id=?",(key,))
+        for table,col in (("content_download","source"),("download_backoff","source"),("transfer_progress","id")):
+            db.execute(f"DELETE FROM {table} WHERE {col}=?",("discover-"+key,))
+
     def run_one(self):
         database_path = self.database_path.resolve()
         lock_path = database_path.with_name(database_path.name + ".download.lock")
@@ -378,6 +403,12 @@ class Downloads:
             with closing(connect(self.database_path)) as database:
                 # The OS releases the lock when the previous worker exits.
                 with database:
+                    for (source,) in database.execute("SELECT source FROM cancelled_transfer").fetchall():
+                        for table in ("content_download","pending_download","download_backoff","cancelled_transfer"):
+                            database.execute(f"DELETE FROM {table} WHERE source=?",(source,))
+                        database.execute("DELETE FROM transfer_progress WHERE id=?",(source,))
+                    for (key,) in database.execute("SELECT id FROM remove_download").fetchall():
+                        self.remove_local(database,database_path.parent/"Content",key)
                     self.queue_due_sources(database)
                     for table in ("content_download", "pending_download"):
                         database.execute(f"UPDATE {table} SET state='Queued' WHERE state='Downloading'")
@@ -392,7 +423,13 @@ class Downloads:
                         item = database.execute("SELECT * FROM discovery_item WHERE id=?", (row["source"][9:],)).fetchone()
                         if item is None:
                             raise ValueError("Catalogue entry missing")
-                        discovery.download(database, database_path.parent / "Content", item)
+                        if discovery.download(database, database_path.parent / "Content", item) is False:
+                            # Give each selected series a turn after one episode.
+                            with database:
+                                database.execute("DELETE FROM content_download WHERE id=?",(row["id"],))
+                                if not database.execute("SELECT 1 FROM cancelled_transfer WHERE source=?",(row["source"],)).fetchone():
+                                    self.enqueue(database,[{"id":row["source"],"title":item["title"]}])
+                            return True
                     else:
                         result = fetch(database, self.sources[row["source"]])
                         if "error" in result:
@@ -401,7 +438,7 @@ class Downloads:
                     with database:
                         prior=database.execute("SELECT attempts FROM download_backoff WHERE source=?",(row["source"],)).fetchone()
                         attempts=(prior[0] if prior else 0)+1
-                        if error.code in {429,503} and attempts<=5:
+                        if error.code in {429,502,503,504} and attempts<=5:
                             delay=60*2**(attempts-1)
                             retry=error.headers.get("Retry-After","")
                             if retry.isdecimal():delay=max(delay,int(retry))
@@ -415,11 +452,19 @@ class Downloads:
                             database.execute(f"UPDATE {table} SET state=? WHERE id=?",(f"Interrupted: publisher returned HTTP {error.code}",row["id"]))
                 except (OSError, HTTPException, ValueError, KeyError) as error:
                     with database:
-                        database.execute(f"UPDATE {table} SET state=? WHERE id=?",
-                                         (f"Interrupted: {error}", row["id"]))
+                        prior=database.execute("SELECT attempts FROM download_backoff WHERE source=?",(row["source"],)).fetchone()
+                        attempts=(prior[0] if prior else 0)+1
+                        if isinstance(error,(ConnectionError,TimeoutError,HTTPException,URLError)) and attempts<=5:
+                            database.execute("INSERT OR REPLACE INTO download_backoff VALUES(?,strftime('%s','now')+?,?)",(row["source"],min(300,5*2**attempts),attempts))
+                            database.execute(f"UPDATE {table} SET state='Queued' WHERE id=?",(row["id"],))
+                        else:
+                            database.execute(f"UPDATE {table} SET state=? WHERE id=?",(f"Interrupted: {error}",row["id"]))
                 else:
                     with database:
                         database.execute("DELETE FROM download_backoff WHERE source=?",(row["source"],))
+                        if table=="pending_download":
+                            database.execute("""UPDATE chosen_download SET snapshot_id=(SELECT snapshot_id FROM fetch WHERE source=? AND error IS NULL ORDER BY id DESC LIMIT 1)
+                                WHERE source=? AND source IN (SELECT source FROM chosen_feed_job)""",(row["source"],row["source"]))
                         database.execute(f"DELETE FROM {table} WHERE id=?", (row["id"],))
             return True
 
@@ -469,7 +514,7 @@ class Dashboard(BaseHTTPRequestHandler):
         with closing(connect(self.server.database)) as database:
             self.server.kit_logs.refresh(database)
             saved = database.execute("SELECT count(DISTINCT source) FROM snapshot").fetchone()[0]
-            queue = self.server.downloads.progress(database)
+            queue = [job for job in self.server.downloads.progress(database) if job["chosen"]]
             last = database.execute("SELECT checked_at FROM fetch ORDER BY id DESC LIMIT 1").fetchone()
             mix="" if summary_only else spotlight.mix(database,spotlight.collection_titles(self.server.kit))
             timeline(database, limit=0)
@@ -695,17 +740,22 @@ class Dashboard(BaseHTTPRequestHandler):
 <nav class=pills aria-label="Suggested searches">{picks}</nav><p role=status>{escape(notice)}</p>
 <form method=post action="/discover/save"><input type=hidden name=token value="{self.server.token}"><div class=collection id=discover-results>{choices}</div><div class=cart-bar><output id=cart-count>{len(cart)} selected</output> <button>Download selections</button></div></form><nav class=pills>{paging}</nav>''')
 
-    def content(self, key, raw=False, sequence=0, cover=False):
+    def content(self, key, raw=False, sequence=None, cover=False):
         with closing(connect(self.server.database)) as db:
             row=db.execute("SELECT * FROM discovery_item WHERE id=? AND filename IS NOT NULL",(key,)).fetchone()
             files=db.execute("SELECT * FROM discovery_file WHERE id=? ORDER BY sequence",(key,)).fetchall()
+            episodes=db.execute("SELECT sequence,title FROM series_parts WHERE id=? ORDER BY sequence",(key,)).fetchall()
         if not row:
             self.send_error(404)
             return
-        if not 0 <= sequence < max(1,len(files)):
+        collection_view=bool(episodes and sequence is None and not raw and not cover)
+        if sequence is None:
+            sequence=files[0]["sequence"] if files else 0
+        selected=next((v for v in files if v["sequence"]==sequence),None)
+        if (files and not selected) or (not files and sequence!=0):
             self.send_error(404)
             return
-        filename = files[sequence]["filename"] if files else row["filename"]
+        filename = selected["filename"] if selected else row["filename"]
         if Path(filename).name != filename:
             self.send_error(404)
             return
@@ -714,13 +764,14 @@ class Dashboard(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         if cover:
-            if path.suffix.lower() not in {".mp4",".webm",".ogv",".m4v"}:
+            if path.suffix.lower() not in {".mp4",".webm",".ogv",".m4v",".mkv",".mov",".avi"}:
                 self.send_error(404)
                 return
             folder=path.parent/".thumbnails"
             target=folder/(path.name+".jpg")
-            if not target.is_file() or target.stat().st_mtime_ns < path.stat().st_mtime_ns:
-                tool=Path(__file__).with_name("make-poster")
+            tool=Path(__file__).with_name("make-poster")
+            updated=max(path.stat().st_mtime_ns,tool.stat().st_mtime_ns if tool.is_file() else 0)
+            if not target.is_file() or target.stat().st_mtime_ns < updated:
                 if not tool.is_file():
                     self.send_error(404)
                     return
@@ -738,9 +789,10 @@ class Dashboard(BaseHTTPRequestHandler):
         source="/content-file/"+key+"?part="+str(sequence)
         if key == discovery.ZIP_ID:
             body = '<label>Open a local ZIP <input id="inspect-zip" type="file" accept=".zip,application/zip"></label><p id="zip-summary" role="status"></p><ol id="zip-entries"></ol>'
-        elif path.suffix in {".mp4",".m4v",".mov",".mkv",".webm",".ogv"}:
+        elif path.suffix in {".mp4",".m4v",".mov",".mkv",".webm",".ogv",".avi"}:
             body = (f'<video controls playsinline preload="metadata" poster="/content-poster/{key}?part={sequence}" src="{source}"></video>'
                     f'<p><a href="/player/content/{key}?part={sequence}">Play with the in-app VLC player</a></p>')
+            if episodes and selected:body=f'<h3>{escape(Path(selected["title"]).stem)}</h3>'+body
             body += self.up_next("/content/"+key)
         elif path.suffix in {".ogg",".oga",".mp3",".aac",".flac",".m4a",".wav"}:
             body=f'<audio controls src="{source}"></audio>'
@@ -769,8 +821,37 @@ class Dashboard(BaseHTTPRequestHandler):
             body += f'<p><a href="/personal-open/{key}">{label}</a></p>'
             if (native and path.suffix==".apk") or (not native and row["preview"]=="Mac application"):
                 body += f'<p><a href="/personal-launch/{key}">Launch installed app</a></p>'
-        playlist = "".join(f'<a href="/content/{key}?part={n}">{escape(f["title"])}</a>' for n,f in enumerate(files)) if len(files)>1 else ""
-        self.send_page(row["title"],f'<nav class=pills>{playlist}</nav><small>{escape(row["rights"])}</small><a href="{source}" download="{escape(row["title"].replace("/", "-")+"".join(path.suffixes))}">Save original file</a>{body}')
+        playlist = "".join(f'<a href="/content/{key}?part={f["sequence"]}">{escape(f["title"])}</a>' for n,f in enumerate(files)) if len(files)>1 else ""
+        if episodes:
+            ready={v["sequence"] for v in files}
+            cards=[]
+            for index,ep in enumerate(episodes):
+                n=ep["sequence"]
+                label=escape(Path(ep["title"]).stem)
+                if n in ready:
+                    poster=f'/content-poster/{key}?part={n}'
+                    loading="eager" if index<4 else "lazy"
+                    cards.append(f'<li><a class="item" href="/content/{key}?part={n}"><span class="thumb"><img loading="{loading}" src="{poster}" alt=""></span><strong>{label}</strong></a></li>')
+                else:
+                    cards.append(f'<li class="episode-pending"><strong>{label}</strong><small>Pending download</small></li>')
+            cover=f"/content-poster/{quote(key,safe='')}?part={files[0]['sequence'] if files else 0}"
+            grid=f'<section aria-label="Episodes" style="--collection-cover:url({cover})"><h3>Episodes · {len(ready)} of {len(episodes)} saved</h3><ol class="episode-grid">{"".join(cards)}</ol></section>'
+            playlist=""
+            if collection_view:
+                body=f'<img class="series-hero" src="/content-poster/{key}?part={sequence}" alt="">{grid}'
+            else:
+                body=f'<p><a href="/content/{key}">All episodes</a></p>{body}{grid}'
+        remove=self.remove_form(key)
+        if row["provider"]=="Internet Archive" and row["kind"] in ("Films","Shows"):
+            remove+=f'<form method=post action="/discover/add"><input type=hidden name=token value="{self.server.token}"><input type=hidden name=item value="{key}"><button>Check for missing episodes</button></form>'
+        save_link="" if collection_view else f'<a href="{source}" download="{escape(row["title"].replace("/", "-")+"".join(path.suffixes))}">Save original file</a>'
+        self.send_page(row["title"],f'<nav class=pills>{playlist}</nav><small>{escape(row["rights"])}</small>{save_link}{body}{remove}')
+
+    def remove_form(self,key):
+        return (f'<details><summary>Remove download</summary><form method="post" action="/download/remove">'
+                f'<input type="hidden" name="token" value="{self.server.token}"><input type="hidden" name="item" value="{escape(key,quote=True)}">'
+                '<p>This deletes the local files for this title, including downloaded episodes and partial transfers.</p>'
+                '<button>Delete from this device</button></form></details>')
 
     def installed_games(self):
         kit = self.server.kit
@@ -898,7 +979,9 @@ class Dashboard(BaseHTTPRequestHandler):
                 JOIN (SELECT max(id) AS id FROM fetch GROUP BY source) last ON last.id=f.id
                 ORDER BY f.checked_at DESC
             """).fetchall()
-            completed = database.execute("SELECT id,title,kind FROM discovery_item WHERE filename IS NOT NULL ORDER BY title").fetchall() if downloads else []
+            completed = database.execute("""SELECT i.id,i.title,i.kind FROM discovery_item i JOIN chosen_download c ON c.source='discover-'||i.id
+                WHERE i.filename IS NOT NULL AND NOT EXISTS(SELECT 1 FROM content_download q WHERE q.source=c.source) ORDER BY i.title""").fetchall() if downloads else []
+            saved_feeds=database.execute("SELECT title,snapshot_id FROM chosen_download WHERE snapshot_id IS NOT NULL ORDER BY title").fetchall() if downloads else []
             progress = self.server.downloads.progress(database)
         kinds = {item["id"]: item["kind"] for item in self.server.catalog["sources"]}
         groups = {}
@@ -917,40 +1000,47 @@ class Dashboard(BaseHTTPRequestHandler):
             sections.append(f'<section id="{escape(anchor)}" class=saved-category><h3>{escape(kind)} <small>{len(cards)}</small></h3>'
                             f'<div class=collection>{"".join(cards)}</div></section>')
         snippets = ('<nav class=pills aria-label="Saved categories">' + "".join(jumps) + '</nav>' + "".join(sections)) if groups else ""
+        progress=[row for row in progress if bool(row["chosen"])==downloads]
+        current = [r for r in progress if r["state"] in ("Queued", "Downloading")]
+        failed = [r for r in progress if r not in current]
+        def lane(title, items, empty):
+            contents = ""
+            for row in items:
+                meter = ""
+                if row["state"]=="Downloading" and row["received"] is not None:
+                    total = row["total"]
+                    received = row["received"]
+                    bar = f'<progress value="{received}" max="{total}"></progress>' if total else '<progress></progress>'
+                    meter = f'{bar} <small>{received/1048576:.1f} MiB received</small>'
+                if row["retry_due"] and row["retry_due"]>datetime.now().timestamp():
+                    meter="<small>Publisher requested a pause. Retrying at "+datetime.fromtimestamp(row["retry_due"]).strftime("%H:%M:%S")+".</small>"
+                retry = ""
+                if row in failed:
+                    retry = f'<form method=post action="/retry"><input type=hidden name=return_to value="{"downloads" if downloads else "archive"}"><input type=hidden name=token value="{self.server.token}"><input type=hidden name=source value="{escape(row["source"])}"><button>{"Retry download" if downloads else "Retry refresh"}</button></form>'
+                if row["state"]=="Queued" or row["source"].startswith("discover-"):
+                    retry+=f'<form method=post action="/download/cancel"><input type=hidden name=token value="{self.server.token}"><input type=hidden name=source value="{escape(row["source"],quote=True)}"><button>Cancel transfer</button></form>'
+                if row["source"].startswith("discover-"): retry+=self.remove_form(row["source"][9:])
+                contents += f'<div class=job><strong>{escape(row["title"])}</strong><small>{escape(row["state"])}</small>{meter}{retry}</div>'
+            return f'<section><h3>{title} <b>{len(items)}</b></h3>{contents or f"<p>{empty}</p>"}</section>'
         if downloads:
-            current = [r for r in progress if r["state"] in ("Queued", "Downloading")]
-            failed = [r for r in progress if r not in current]
-            def lane(title, items, empty):
-                contents = ""
-                for row in items:
-                    meter = ""
-                    if row["state"]=="Downloading" and row["received"] is not None:
-                        total = row["total"]
-                        received = row["received"]
-                        bar = f'<progress value="{received}" max="{total}"></progress>' if total else '<progress></progress>'
-                        meter = f'{bar} <small>{received/1048576:.1f} MiB received</small>'
-                    if row["retry_due"] and row["retry_due"]>datetime.now().timestamp():
-                        meter="<small>Publisher requested a pause. Retrying at "+datetime.fromtimestamp(row["retry_due"]).strftime("%H:%M:%S")+".</small>"
-                    retry = ""
-                    if row in failed:
-                        retry = f'<form method=post action="/retry"><input type=hidden name=token value="{self.server.token}"><input type=hidden name=source value="{escape(row["source"])}"><button>Retry download</button></form>'
-                    contents += f'<div class=job><strong>{escape(row["title"])}</strong><small>{escape(row["state"])}</small>{meter}{retry}</div>'
-                return f'<section><h3>{title} <b>{len(items)}</b></h3>{contents or f"<p>{empty}</p>"}</section>'
             library_links = "".join(f'<a class=tile href="/content/{r["id"]}"><strong>{escape(r["title"])}</strong><small>{escape(r["kind"])}</small></a>' for r in completed)
-            saved_downloads = '<h3>Saved to your library</h3><div class=collection>'+library_links+'</div>' if completed else ""
-            history = "".join(f'<tr><th>{escape(row["title"] or row["source"])}</th><td>{escape(row["error"] or "Saved")}</td><td>{escape(row["checked_at"])}</td></tr>' for row in latest)
+            library_links+="".join(f'<a class=tile href="/read/{r["snapshot_id"]}"><strong>{escape(r["title"])}</strong></a>' for r in saved_feeds)
+            saved_downloads = '<h3>Saved to your library</h3><div class=collection>'+library_links+'</div>' if library_links else ""
             self.send_page("Downloads", f'''<nav class=pills><a href="/sources">Choose downloads</a><a href="/archive">Open saved sources</a></nav>
 <small id="connection-status" role=status></small><section id=archive-live><div class=lanes>
 {lane("Transfer queue", current, "No active transfers.")}{lane("Needs attention", failed, "No interrupted transfers.")}</div>
-{saved_downloads}<h3>Latest check by source</h3><div class=scroll-table><table><thead><tr><th>Source</th><th>Result</th><th>Checked at</th></tr></thead><tbody>{history}</tbody></table></div></section>''')
+{saved_downloads}</section>''')
             return
+        history = "".join(f'<tr><th>{escape(row["title"] or row["source"])}</th><td>{escape(row["error"] or "Saved")}</td><td>{escape(row["checked_at"])}</td></tr>' for row in latest)
         backup = ('<a href="/archive/backup">Download archive backup</a>' if getattr(self.server,"android",False)
                   else f'<form method=post action="/archive/backup"><input type=hidden name=token value="{self.server.token}"><button>Download archive backup</button></form>')
         self.send_page("Saved sources", f"""
 <form><input type=search name=q value="{escape(query)}" placeholder="Search saved sources"
 aria-label="Search saved sources"> <button>Search</button></form>
 <nav class=pills><a href="/library">Browse library</a><a href="/sources">Add sources</a><a href="/downloads">Download activity</a></nav>
-<section id="archive-live">{snippets or ("<p>No matching sources.</p>" if query else "<p>Your saved sources will appear here.</p>")}</section>
+<section id="archive-live">{snippets or ("<p>No matching sources.</p>" if query else "<p>Your saved sources will appear here.</p>")}
+<section id="activity"><h3>Source refresh activity</h3><div class=lanes>
+{lane("Refresh queue",current,"No refreshes pending.")}{lane("Refresh errors",failed,"No refresh errors.")}</div><h3>Latest check by source</h3><div class=scroll-table><table><thead><tr><th>Source</th><th>Result</th><th>Checked at</th></tr></thead><tbody>{history}</tbody></table></div></section></section>
 <small id="connection-status" role=status></small>
 {backup}
 <small>Includes saved sources, download history and imported evidence.</small>""")
@@ -1244,7 +1334,12 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                 self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store")
                 self.end_headers();self.wfile.write(data);return
             status,ready=self.server.private_browser.status()
-            data=json.dumps({"status":status,"ready":ready,"port":self.server.private_browser.proxy.server_port if ready and self.server.private_browser.proxy else 0}).encode()
+            session=self.server.private_browser
+            proxy=session.proxy
+            process=session.process
+            data=json.dumps({"status":status,"ready":ready,"country":session.location,
+                             "enabled":process is not None and process.poll() is None,
+                             "port":proxy.server_port if ready and proxy else 0}).encode()
             self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Cache-Control","no-store")
             self.send_header("Content-Length",str(len(data)));self.end_headers();self.wfile.write(data)
             return
@@ -1330,7 +1425,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
             if not part.isascii() or not part.isdigit() or len(part)>6:
                 self.send_error(400)
                 return
-            self.content(target.path.rsplit("/",1)[1],target.path.startswith("/content-file/"),int(part),target.path.startswith("/content-poster/"))
+            self.content(target.path.rsplit("/",1)[1],target.path.startswith("/content-file/"),int(part) if "part" in params else None,target.path.startswith("/content-poster/"))
         elif target.path in ("/games","/library/games"):
             self.games(params.get("play", [""])[0])
         elif target.path.startswith("/puzzle-cover/"):
@@ -1481,6 +1576,18 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         self.evidence({}, f"Imported {added} new records. Skipped {skipped} unreadable or unsupported rows.")
 
     def do_POST(self):
+        if self.path == "/openintel/capture":
+            if not self.local_request() or not hmac.compare_digest(self.headers.get("X-Library-Token",""),self.server.token):
+                self.send_error(403);return
+            size=self.headers.get("Content-Length","")
+            if not size.isascii() or not size.isdigit() or len(size)>8 or not 0<int(size)<=16*1024*1024:
+                intel_screen.respond(self,{"error":"Capture exceeds the 16 MiB limit."},413);return
+            try:
+                data=json.loads(self.rfile.read(int(size)))
+                saved=intel_screen.cases.capture_page(self.server.intel,int(data["owner"]),data["page"])
+            except (KeyError,TypeError,ValueError,OverflowError) as err:
+                intel_screen.respond(self,{"error":str(err)[:200]},400);return
+            intel_screen.respond(self,saved,201);return
         destination=re.fullmatch(r"/library/([a-z]+)/import",self.path)
         if destination and destination[1] in personal_library.SHELVES:
             kind=personal_library.SHELVES[destination[1]]
@@ -1497,7 +1604,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if self.local_request() and self.path == "/evidence/import":
             self.import_evidence()
             return
-        if not self.local_request() or self.path not in {"/openintel/action", "/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
+        if not self.local_request() or self.path not in {"/openintel/action", "/download/remove", "/download/cancel", "/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
             self.send_error(403)
             return
         length = self.headers.get("Content-Length", "")
@@ -1513,6 +1620,29 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if not hmac.compare_digest(token, self.server.token.encode()):
             self.send_error(403)
             return
+        if self.path == "/download/cancel":
+            source=fields.get("source",[""])[0]
+            table="content_download" if source.startswith("discover-") else "pending_download"
+            with closing(connect(self.server.database)) as db,db:
+                # The worker owns active files. Remove waiting jobs immediately.
+                db.execute(f"INSERT OR IGNORE INTO cancelled_transfer SELECT source FROM {table} WHERE source=? AND state='Downloading'",(source,))
+                db.execute(f"DELETE FROM {table} WHERE source=? AND state!='Downloading'",(source,))
+                db.execute("DELETE FROM download_backoff WHERE source=?",(source,))
+            self.server.downloads.wakeup.set()
+            self.send_response(303);self.send_header("Location","/downloads");self.end_headers();return
+        if self.path == "/download/remove":
+            key=fields.get("item",[""])[0]
+            if not re.fullmatch(r"(?:personal-)?[0-9a-f]{64}",key):
+                self.send_error(400);return
+            with closing(connect(self.server.database)) as db,db:
+                db.execute("BEGIN IMMEDIATE")
+                job=db.execute("SELECT state FROM content_download WHERE source=?",("discover-"+key,)).fetchone()
+                if job and job[0]=="Downloading":
+                    db.execute("INSERT OR IGNORE INTO remove_download VALUES(?)",(key,))
+                else:
+                    self.server.downloads.remove_local(db,self.server.database.parent/"Content",key)
+            self.server.downloads.wakeup.set()
+            self.send_response(303);self.send_header("Location","/downloads");self.end_headers();return
         if self.path == "/openintel/action":
             intel_screen.write(self,fields);return
         if self.path == "/storage":
@@ -1547,8 +1677,12 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                 if action=="ensure":
                     session.start(fields.get("country",[session.location])[0])
                     self.send_response(204);self.end_headers();return
-                if action=="connect":session.start(fields.get("country",[""])[0])
-                elif action=="disconnect":session.close()
+                if action in ("connect","disconnect","region"):
+                    process=session.process
+                    enabled=action=="connect" or (action=="region" and process is not None and process.poll() is None)
+                    session.configure(enabled,fields.get("country",[session.location])[0])
+                    if self.headers.get("X-Echo-Control")=="switch":
+                        self.send_response(204);self.end_headers();return
                 else:url,article=session.navigate(action,fields.get("url",[""])[0])
             except (OSError,ValueError,UnicodeError,http.client.HTTPException) as error:
                 message=str(error) if isinstance(error,ValueError) else "Could not reach the website over Tor. Check the connection and try again."
@@ -1571,7 +1705,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                 db.execute(f"UPDATE {table} SET state='Queued' WHERE source=? AND state LIKE 'Interrupted:%'", (source,))
             self.server.downloads.wakeup.set()
             self.send_response(303)
-            self.send_header("Location", "/downloads")
+            self.send_header("Location", "/archive" if fields.get("return_to")==["archive"] else "/downloads")
             self.end_headers()
             return
         if self.path == "/narrate":
@@ -1608,7 +1742,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if self.path == "/discover/add":
             key=fields.get("item",[""])[0]
             with closing(connect(self.server.database)) as db,db:
-                row=db.execute("SELECT title FROM discovery_item WHERE id=? AND filename IS NULL",(key,)).fetchone()
+                row=db.execute("SELECT title FROM discovery_item WHERE id=? AND (filename IS NULL OR (provider='Internet Archive' AND kind IN ('Films','Shows')))",(key,)).fetchone()
                 if row:self.server.downloads.enqueue(db,[{"id":"discover-"+key,"title":row["title"]}])
             self.server.downloads.wakeup.set()
             self.send_response(303);self.send_header("Location","/downloads");self.end_headers();return
@@ -1678,6 +1812,9 @@ def create_server(port, database_path, echolite=None, kit=None):
     server = WorkspaceServer(("127.0.0.1", port), Dashboard)
     try:
         server.private_browser = private_browser.Session(database_path.parent / "Tor")
+        if server.private_browser.wanted and not os.environ.get("ANDROID_ROOT"):
+            try:server.private_browser.start(server.private_browser.location)
+            except OSError:pass
         server.card_previews = {}
         server.companion_status = database_path.parent / "Android/status.json"
         server.news = News(database_path)

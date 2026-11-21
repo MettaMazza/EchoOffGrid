@@ -52,6 +52,22 @@ public class Main extends Activity {
     }
     @Override protected void onActivityResult(int code,int result,Intent data){
         super.onActivityResult(code,result,data);
+        if(code==74){
+            if(result==RESULT_OK && browser!=null && browser.getUrl()!=null) {
+                File file=new File(getCacheDir(),"pending-browser-capture.json");
+                try {
+                    String trusted="http://127.0.0.1:"+port;
+                    if(!browser.getUrl().split("[?]",2)[0].equals(trusted+"/private-browser"))
+                        throw new IOException("Open Private Browser before capturing a page.");
+                    org.json.JSONObject page=new org.json.JSONObject(new String(java.nio.file.Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8));
+                    browser.evaluateJavascript("if(location.origin==="+org.json.JSONObject.quote(trusted)+
+                        " && location.pathname==='/private-browser')window.echoReviewCapture(JSON.parse("+
+                        org.json.JSONObject.quote(page.toString())+"))",null);
+                }catch(Exception err){Toast.makeText(this,"Could not review capture: "+err.getMessage(),Toast.LENGTH_LONG).show();}
+                finally{file.delete();}
+            }
+            return;
+        }
         if(code==73){
             if(result==RESULT_OK) startPhoneVpn();
             else Toast.makeText(this,"Phone VPN permission was declined.",Toast.LENGTH_SHORT).show();
@@ -69,6 +85,35 @@ public class Main extends Activity {
             else if(data.getData()!=null)files=new Uri[]{data.getData()};
         }
         picker.onReceiveValue(files);picker=null;
+    }
+
+    private boolean inlinePlaying;
+    private android.util.Rational inlineAspect = new android.util.Rational(16,9);
+
+    private void setInlinePlayback(boolean playing,int width,int height) {
+        if (!getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) return;
+        android.util.Rational aspect = inlineAspect;
+        if (width>0 && height>0) {
+            int ratio=(int)Math.round(1000*Math.max(0.419,Math.min(2.39,(double)width/height)));
+            aspect=new android.util.Rational(ratio,1000);
+        }
+        if (playing==inlinePlaying && aspect.equals(inlineAspect)) return;
+        inlinePlaying=playing;
+        inlineAspect=aspect;
+        android.app.PictureInPictureParams.Builder params=new android.app.PictureInPictureParams.Builder().setAspectRatio(aspect);
+        if(android.os.Build.VERSION.SDK_INT>=31) params.setAutoEnterEnabled(playing);
+        setPictureInPictureParams(params.build());
+    }
+
+    @Override protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if(android.os.Build.VERSION.SDK_INT<31 && inlinePlaying && !isInPictureInPictureMode())
+            enterPictureInPictureMode(new android.app.PictureInPictureParams.Builder().setAspectRatio(inlineAspect).build());
+    }
+
+    @Override public void onPictureInPictureModeChanged(boolean small, android.content.res.Configuration config) {
+        super.onPictureInPictureModeChanged(small,config);
+        if(browser!=null)browser.evaluateJavascript("document.documentElement.classList.toggle('video-pip',"+small+")",null);
     }
 
     private android.view.View fullVideo;
@@ -153,6 +198,13 @@ public class Main extends Activity {
             try {
                 int active = launch(getApplicationContext());
                 runOnUiThread(() -> { if (!isDestroyed()) show(active, state); });
+                java.net.HttpURLConnection c=connection(this,"/mobile-transfer-count");
+                try(BufferedReader in=new BufferedReader(new InputStreamReader(c.getInputStream()))){
+                    if(Integer.parseInt(in.readLine())>0)runOnUiThread(()->{
+                        if(!isFinishing() && !isDestroyed())startForegroundService(new Intent(this,Transfers.class));
+                    });
+                }catch(IOException e){android.util.Log.w("EchoTransfers","Checking restored transfers",e);}
+                finally{c.disconnect();}
             } catch (Exception e) {
                 android.util.Log.e("EchoOffGrid","Startup",e);
                 runOnUiThread(() -> status.setText("Could not open EchoOffGrid. " + e.getMessage()));
@@ -174,6 +226,13 @@ public class Main extends Activity {
         browser.getSettings().setAllowContentAccess(false);
         CookieManager.getInstance().setCookie(origin, "workstation=" + key + "; Path=/; HttpOnly; SameSite=Strict");
         if(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.WEB_MESSAGE_LISTENER)){
+            androidx.webkit.WebViewCompat.addWebMessageListener(browser,"echoVideo",java.util.Collections.singleton(origin),(view,message,source,main,reply)->{
+                if(!main || !origin.equals(source.toString()))return;
+                try{
+                    org.json.JSONObject video=new org.json.JSONObject(message.getData());
+                    setInlinePlayback(video.getBoolean("playing"),video.optInt("width"),video.optInt("height"));
+                }catch(org.json.JSONException invalid){android.util.Log.w("EchoVideo","Invalid playback state",invalid);}
+            });
             androidx.webkit.WebViewCompat.addWebMessageListener(browser,"echoAudio",java.util.Collections.singleton(origin),(view,message,source,main,reply)->{
                 if(!main || !origin.equals(source.toString()))return;
                 try{
@@ -230,6 +289,10 @@ public class Main extends Activity {
             }
         });
         browser.setWebViewClient(new WebViewClient() {
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){
+                setInlinePlayback(false,0,0);
+                super.onPageStarted(view,url,icon);
+            }
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri=request.getUrl();
                 if (("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) &&
@@ -240,9 +303,22 @@ public class Main extends Activity {
                     if("POST".equals(request.getMethod()) &&
                             java.util.Arrays.asList("/discover/add","/discover/save","/retry","/sync","/wiki-edition").contains(uri.getPath()))
                         startForegroundService(new Intent(Main.this,Transfers.class));
+                    if ("/phone-vpn-region".equals(uri.getPath()) && "POST".equals(request.getMethod()) &&
+                            request.getRequestHeaders().entrySet().stream().anyMatch(h ->
+                                "X-Echo-VPN".equalsIgnoreCase(h.getKey()) && "region".equals(h.getValue()))) {
+                        String country = uri.getQueryParameter("country");
+                        if (country != null && country.matches("[a-z]{2}|")) {
+                            getSharedPreferences("vpn",0).edit().putString("country",country).commit();
+                            if (PhoneVpn.enabled) startService(new Intent(Main.this,PhoneVpn.class).setAction(PhoneVpn.REGION));
+                            return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));
+                        }
+                    }
                     if ("/phone-vpn-status".equals(uri.getPath())) {
                         org.json.JSONObject status = new org.json.JSONObject();
-                        status.put("enabled",PhoneVpn.enabled).put("status",PhoneVpn.state);
+                        String country = getSharedPreferences("vpn",0).getString("country","");
+                        boolean switching = PhoneVpn.enabled && !country.equals(PhoneVpn.activeCountry);
+                        status.put("country",country).put("enabled",PhoneVpn.enabled)
+                              .put("status",switching ? "Changing exit region" : PhoneVpn.state);
                         return new WebResourceResponse("application/json","UTF-8",new ByteArrayInputStream(status.toString().getBytes("UTF-8")));
                     }
                     if("POST".equals(request.getMethod()) && uri.getPath().matches("/native-metadata/personal-[a-f0-9]{64}") &&
@@ -301,7 +377,7 @@ public class Main extends Activity {
                     Uri page=Uri.parse(view.getUrl());
                     if(page.getPort()==active && "127.0.0.1".equals(page.getHost()) && "/private-browser".equals(page.getPath())){
                         try{int port=Integer.parseInt(uri.getQueryParameter("port"));
-                            if(port>=1024 && port<=65535)startActivity(new Intent(Main.this,PrivateBrowser.class).putExtra("port",port).putExtra("url",uri.getQueryParameter("url")));
+                            if(port>=1024 && port<=65535)startActivityForResult(new Intent(Main.this,PrivateBrowser.class).putExtra("port",port).putExtra("url",uri.getQueryParameter("url")),74);
                         }catch(NumberFormatException ignored){}
                     }
                     return true;

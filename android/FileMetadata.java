@@ -1,7 +1,7 @@
 package dev.echooffgrid.mobile;
 
 import android.content.Context;
-import android.database.sqlite.SQLiteDatabase;
+import java.net.HttpURLConnection;
 import android.content.pm.PackageInfo;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
@@ -43,10 +43,14 @@ final class FileMetadata {
             }finally{temp.delete();}
         }
         if(title!=null && !title.trim().isEmpty()){
-            File path=new File(file.getParentFile().getParentFile(),"archive.sqlite3");
-            try(SQLiteDatabase db=SQLiteDatabase.openDatabase(path.toString(),null,SQLiteDatabase.OPEN_READWRITE)){
-                db.execSQL("UPDATE discovery_item SET title=? WHERE id=?",new Object[]{title,id});
-            }
+            HttpURLConnection c=Main.connection(context,"/mobile-file-title");
+            c.setRequestMethod("POST");c.setRequestProperty("X-Echo-Native","1");c.setDoOutput(true);
+            try{
+                byte[] data=new org.json.JSONObject().put("id",id).put("title",title.substring(0,Math.min(400,title.length()))).toString().getBytes("UTF-8");
+                c.setFixedLengthStreamingMode(data.length);
+                try(OutputStream out=c.getOutputStream()){out.write(data);}
+                if(c.getResponseCode()!=204)throw new IOException("Could not save media title");
+            }finally{c.disconnect();}
         }
     }
 }

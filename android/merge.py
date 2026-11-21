@@ -24,6 +24,12 @@ def merge(local, snapshot):
                 dst.execute("""INSERT OR IGNORE INTO main.exhibit(owner,citation,hash)
                     SELECT l.owner,e.citation,e.hash FROM peer.exhibit e JOIN peer.case_identity p ON p.owner=e.owner
                     JOIN main.case_identity l ON l.uuid=p.uuid""")
+                if "case_finding" in tables & local_tables:
+                    dst.execute("""INSERT OR IGNORE INTO main.case_finding SELECT f.* FROM peer.case_finding f
+                        JOIN main.case_identity c ON c.uuid=f.case_uuid""")
+                if "case_relationship" in tables & local_tables:
+                    dst.execute("""INSERT OR IGNORE INTO main.case_relationship SELECT r.* FROM peer.case_relationship r
+                        JOIN main.case_identity c ON c.uuid=r.case_uuid""")
             if "discovery_item" in tables & local_tables:
                 dst.execute("""INSERT OR IGNORE INTO discovery_item(id,kind,title,preview,rights,url,ext,provider,filename)
                     SELECT id,kind,title,preview,rights,url,ext,provider,CASE WHEN has_file(filename) THEN filename END
@@ -68,7 +74,7 @@ def revision(path):
     digest = hashlib.sha256()
     with closing(sqlite3.connect(Path(path).resolve().as_uri()+"?mode=ro",uri=True)) as db:
         tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for table,columns in (("case_identity","uuid"),("exhibit","owner,citation,hash"),("intel_saved","id"),("snapshot","source,sha256"),("fetch","source,checked_at,error"),
+        for table,columns in (("case_identity","uuid"),("case_relationship","uuid,case_uuid,written_utc,subject,predicate,object,assessment,exhibit_ref,passage"),("case_finding","uuid,case_uuid,statement,unknowns,links,written_utc"),("exhibit","owner,citation,hash"),("intel_saved","id"),("snapshot","source,sha256"),("fetch","source,checked_at,error"),
                               ("evidence","fingerprint"),("discovery_item","id,filename"),
                               ("discovery_file","id,sequence,filename"),("news_story","edition,link,title,summary,published,body"),
                               ("selection","regions,sources"),("news_setting","place")):

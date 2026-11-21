@@ -252,6 +252,14 @@
 
 const mainVideo = document.querySelector('main video[controls]');
 if (mainVideo) {
+  if(window.echoVideo){
+    const report = () => window.echoVideo.postMessage(JSON.stringify({
+      playing:!mainVideo.paused && !mainVideo.ended && !mainVideo.error,
+      width:mainVideo.videoWidth,height:mainVideo.videoHeight
+    }));
+    for(const event of ['playing','pause','ended','emptied','error','resize']) mainVideo.addEventListener(event,report);
+    report();
+  }
   const playerLink = document.querySelector('main a[href^="/player/"]');
   if(playerLink && navigator.userAgent.includes('EchoOffGrid/Android')){
     const small=document.createElement('a');small.href=playerLink.href;small.textContent='Picture in picture';
@@ -357,11 +365,6 @@ document.querySelectorAll('iframe').forEach(protectFrame);
 document.addEventListener('load',e=>{if(e.target.tagName==='IFRAME')protectFrame(e.target);},true);
 
 const exitSelect=document.querySelector('.private-browser-controls [name=country]');
-const savedExit=document.cookie.match(/(?:^|; )echo_exit=([a-z]{0,2})(?:;|$)/);
-if(exitSelect){
-  if(savedExit && [...exitSelect.options].some(o=>o.value===savedExit[1]))exitSelect.value=savedExit[1];
-  exitSelect.addEventListener('change',()=>{document.cookie='echo_exit='+exitSelect.value+'; Path=/; Max-Age=31536000; SameSite=Strict';});
-}
 const phoneVPN = navigator.userAgent.includes('EchoOffGrid/Android');
 const nativePrivate = phoneVPN || navigator.userAgent.includes('EchoOffGrid/Mac');
 async function phoneState() {
@@ -369,26 +372,71 @@ async function phoneState() {
   if (!response.ok) throw Error('VPN status unavailable');
   return response.json();
 }
-if (phoneVPN) {
-  const toggle=document.createElement('a');
-  toggle.className='phone-vpn-toggle';
-  toggle.setAttribute('role','switch');
-  document.querySelector('.workstation-header')?.append(toggle);
-  async function updateToggle() {
-    try {
-      const {enabled,status}=await phoneState();
-      const params=new URLSearchParams({action:enabled?'off':'on'});
-      const field=document.querySelector('[name=country]');
-      if(field) params.set('country',field.value);
-      toggle.href='/phone-vpn?'+params;
-      toggle.textContent='VPN '+(enabled ? (status==='Connected over Tor'?'on':'…') : 'off');
-      toggle.title='Phone VPN · '+status;
-      toggle.setAttribute('aria-label',toggle.title);
-      toggle.setAttribute('aria-checked',String(enabled));
-    } catch { toggle.removeAttribute('href'); toggle.textContent='Phone VPN unavailable'; }
+async function controlBrowser(action,country) {
+  const params=new URLSearchParams({action,token:document.querySelector('#reader-tools').dataset.token});
+  if(country!==undefined) params.set('country',country);
+  const response=await fetch('/private-browser',{method:'POST',headers:{'X-Echo-Control':'switch'},body:params});
+  if(response.status!==204) throw Error('Could not change the protected browser connection.');
+}
+let changingExit=false;
+if (nativePrivate) {
+  const switches=[];
+  function addSwitch(parent) {
+    if (!parent) return;
+    const toggle=document.createElement('a');
+    toggle.className='phone-vpn-toggle';
+    toggle.setAttribute('role','switch');
+    if(!phoneVPN) toggle.onclick=async event=>{
+      event.preventDefault();
+      if(changingExit) return;
+      changingExit=true;
+      try {await controlBrowser(toggle.dataset.enabled==='true'?'disconnect':'connect',exitSelect?.value);}
+      finally {changingExit=false;updateToggle();}
+    };
+    parent.append(toggle);
+    switches.push(toggle);
   }
+  addSwitch(document.querySelector('.workstation-header'));
+  if (exitSelect) {
+    const controls=exitSelect.form;
+    controls.querySelectorAll('button[name=action]').forEach(b=>b.remove());
+    controls.onsubmit=e=>e.preventDefault();
+    addSwitch(controls);
+  }
+  let revision=0;
+  async function updateToggle() {
+    const current=++revision;
+    try {
+      const {enabled,status,country,ready}=phoneVPN ? await phoneState() : await (await fetch('/private-status',{cache:'no-store'})).json();
+      if (current!==revision || changingExit) return;
+      if(exitSelect && country!==undefined) exitSelect.value=country;
+      const params=new URLSearchParams({action:enabled?'off':'on'});
+      for(const toggle of switches) {
+        toggle.href=phoneVPN?'/phone-vpn?'+params:'#';
+        toggle.dataset.enabled=String(enabled);
+        toggle.textContent=(phoneVPN?'VPN ':'Browser Tor ')+(enabled ? (ready||status==='Connected over Tor'?'on':'…') : 'off');
+        toggle.title=(phoneVPN?'Phone VPN':'Protected browser')+' · '+status+' · '+(country?country.toUpperCase():'Automatic exit');
+        toggle.setAttribute('aria-label',toggle.title);
+        toggle.setAttribute('aria-checked',String(enabled));
+      }
+    } catch {
+      for(const toggle of switches) {toggle.removeAttribute('href');toggle.textContent='VPN unavailable';}
+    }
+  }
+  exitSelect?.addEventListener('change',async()=>{
+    changingExit=true;exitSelect.disabled=true;
+    const launch=document.getElementById('native-browser-launch');
+    launch?.removeAttribute('href');launch?.setAttribute('aria-disabled','true');
+    try {
+      if(!phoneVPN) {await controlBrowser('region',exitSelect.value);return;}
+      const res=await fetch('/phone-vpn-region?'+new URLSearchParams({country:exitSelect.value}),
+        {method:'POST',headers:{'X-Echo-VPN':'region'}});
+      if(!res.ok)throw Error('Could not save exit region.');
+      if(!(await phoneState()).enabled) await controlBrowser('region',exitSelect.value);
+    } catch(err) {document.getElementById('private-status').textContent=err.message;}
+    finally {changingExit=false;exitSelect.disabled=false;updateToggle();}
+  });
   updateToggle();
-  document.querySelector('[name=country]')?.addEventListener('change',updateToggle);
   const timer=setInterval(updateToggle,1500);
   window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
 }
@@ -409,13 +457,13 @@ if (privateStatus) {
     else if(!nativePrivate){e.preventDefault();openReader(destination || 'https://duckduckgo.com/');}
   });
   async function refresh() {
-    if(busy)return;
+    if(busy||changingExit)return;
     busy=true;
     try {
       const phone=phoneVPN ? await phoneState() : {enabled:false};
       if(destination && !started && !phone.enabled) {
         const response=await fetch('/private-browser',{method:'POST',body:new URLSearchParams({
-          token:reader.elements.token.value,action:'ensure',country:exitSelect.value
+          token:reader.elements.token.value,action:'ensure',country:phoneVPN ? phone.country : exitSelect.value
         })});
         if(response.status!==204)throw Error();
         started=true;
@@ -423,6 +471,7 @@ if (privateStatus) {
       const response=await fetch('/private-status'+(phone.enabled?'?phone=1':''),{cache:'no-store'});
       if(!response.ok)throw Error();
       const session=await response.json();
+      if(changingExit)return;
       const ready=phone.enabled ? phone.status==='Connected over Tor' : session.ready;
       privateStatus.textContent=phone.enabled ? 'Phone VPN · '+phone.status : session.status;
       link.setAttribute('aria-disabled',String(!ready));
@@ -525,3 +574,49 @@ document.addEventListener('error',e=>{if(e.target instanceof HTMLImageElement &&
   }
   setTimeout(update, 5000);
 })();
+
+if (document.getElementById('capture-review')) {
+  const dialog=document.getElementById('capture-review'), form=document.getElementById('capture-form');
+  const message=document.getElementById('capture-status'), choose=form.elements.owner;
+  let page;
+  choose.onchange=()=>{
+    document.getElementById('capture-new').hidden=choose.value!=='new';
+    form.elements.title.required=choose.value==='new';
+  };
+  window.echoReviewCapture=async capture=>{
+    page=capture;
+    document.getElementById('capture-title').textContent=capture.title+' · '+capture.url;
+    message.textContent='Loading cases…';choose.replaceChildren();
+    dialog.showModal();
+    try {
+      const response=await fetch('/openintel/cases');
+      if(!response.ok)throw Error('Could not load cases.');
+      const data=await response.json();
+      choose.replaceChildren(...data.cases.map(c=>new Option(c.title,c.id)),new Option('Create a new case','new'));
+      choose.onchange();message.textContent='';
+    } catch(err) {message.textContent=err.message;}
+  };
+  document.getElementById('capture-cancel').onclick=()=>dialog.close();
+  dialog.onclose=()=>{page=null;form.reset();};
+  form.onsubmit=async e=>{
+    e.preventDefault();
+    const submit=form.querySelector('button'),cancel=document.getElementById('capture-cancel');
+    submit.disabled=cancel.disabled=true;
+    try {
+      const token=document.getElementById('reader-tools').dataset.token;
+      let owner=choose.value;
+      if(owner==='new') {
+        const response=await fetch('/openintel/action',{method:'POST',body:new URLSearchParams({action:'case-create',title:form.elements.title.value,token})});
+        const created=await response.json();
+        if(!response.ok)throw Error(created.error);
+        owner=String(created.id);choose.add(new Option(form.elements.title.value,owner));choose.value=owner;choose.onchange();
+      }
+      const res=await fetch('/openintel/capture',{method:'POST',headers:{'Content-Type':'application/json','X-Library-Token':token},body:JSON.stringify({owner,page})});
+      const result=await res.json();
+      if(!res.ok)throw Error(result.error);
+      dialog.close();
+      location.assign('/openintel?case='+owner);
+    } catch(err) {message.textContent=err.message;}
+    finally {submit.disabled=cancel.disabled=false;}
+  };
+}

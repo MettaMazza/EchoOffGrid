@@ -2,6 +2,7 @@
 from browser_proxy import BrowserProxy
 import http.client
 import ipaddress
+import json
 import os
 from pathlib import Path
 import socket
@@ -123,6 +124,31 @@ class Session:
         self.position=-1
         self.temp=None
 
+        self.preference_path = self.state / "browser-preferences.json"
+        self.wanted = False
+        try:
+            prefs = json.loads(self.preference_path.read_text())
+            if isinstance(prefs, dict) and prefs.get("country") in COUNTRIES:
+                self.location = prefs["country"]
+                self.wanted = prefs.get("enabled") is True
+        except (OSError, ValueError, TypeError):
+            pass
+
+    def configure(self, enabled, country):
+        if country not in COUNTRIES:
+            raise ValueError("Choose a listed exit country.")
+        with self.lock:
+            self.state.mkdir(mode=0o700,parents=True,exist_ok=True)
+            with tempfile.NamedTemporaryFile(mode="w",dir=self.state,delete=False) as out:
+                json.dump({"country":country,"enabled":enabled},out)
+            os.replace(out.name,self.preference_path)
+            self.wanted = enabled
+            if enabled:
+                self._start(country)
+            else:
+                self._stop()
+                self.location = country
+
     def close(self):
         with self.lock:self._stop()
 
@@ -146,22 +172,25 @@ class Session:
     def start(self, country):
         if country not in COUNTRIES:raise ValueError("Choose a listed exit country.")
         with self.lock:
-            if self.process and self.process.poll() is None and self.location==country:return
-            self._stop()
-            self.location=country
-            self.state.mkdir(mode=0o700,parents=True,exist_ok=True)
-            self.temp=tempfile.TemporaryDirectory(prefix="pb-",dir=self.state if os.environ.get("ANDROID_ROOT") else "/tmp")
-            self.socket_path=str(Path(self.temp.name)/"s")
-            config=Path(self.temp.name)/"torrc"
-            config.touch(mode=0o600)
-            args=[str(self.binary),"-f",str(config),"--DataDirectory",str(self.state),"--SocksPort","unix:"+self.socket_path,
-                  "--GeoIPFile",str(ROOT/"data/geoip"),"--GeoIPv6File",str(ROOT/"data/geoip6"),
-                  "--ClientRejectInternalAddresses","1","--SafeLogging","1","--Log","notice stdout",
-                  "--__OwningControllerProcess",str(os.getpid())]
-            if country:args+=["--ExitNodes","{"+country+"}","--StrictNodes","1"]
-            self.process=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
-            self.proxy=BrowserProxy(self.socket_path)
-            Thread(target=self._watch,args=(self.process,),daemon=True).start()
+            self._start(country)
+
+    def _start(self, country):
+        if self.process and self.process.poll() is None and self.location==country:return
+        self._stop()
+        self.location=country
+        self.state.mkdir(mode=0o700,parents=True,exist_ok=True)
+        self.temp=tempfile.TemporaryDirectory(prefix="pb-",dir=self.state if os.environ.get("ANDROID_ROOT") else "/tmp")
+        self.socket_path=str(Path(self.temp.name)/"s")
+        config=Path(self.temp.name)/"torrc"
+        config.touch(mode=0o600)
+        args=[str(self.binary),"-f",str(config),"--DataDirectory",str(self.state),"--SocksPort","unix:"+self.socket_path,
+              "--GeoIPFile",str(ROOT/"data/geoip"),"--GeoIPv6File",str(ROOT/"data/geoip6"),
+              "--ClientRejectInternalAddresses","1","--SafeLogging","1","--Log","notice stdout",
+              "--__OwningControllerProcess",str(os.getpid())]
+        if country:args+=["--ExitNodes","{"+country+"}","--StrictNodes","1"]
+        self.process=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+        self.proxy=BrowserProxy(self.socket_path)
+        Thread(target=self._watch,args=(self.process,),daemon=True).start()
 
     def _watch(self, process):
         import re
@@ -268,4 +297,9 @@ def screen(session, token, url="", article="", message=""):
             f'<p role=status>{escape(message)}</p>'
             f'<p><a data-destination="{escape(url if not article else "",quote=True)}" class="native-browser-launch" id=native-browser-launch href="{launch}" aria-disabled="{str(not ready).lower()}">Open private browser →</a></p>'
             f'<form id="private-links" method="post" action="/private-browser">{hidden}<input type=hidden name=action value=browse></form>'
+            '<dialog id="capture-review"><h3>Save browser capture</h3><form id="capture-form">'
+            '<p id="capture-title"></p><p>Save the visible image, rendered HTML and page text with the URL and capture time.</p>'
+            '<label>Case<select name="owner" required></select></label><label id="capture-new" hidden>New case name'
+            '<input name="title" maxlength="120"></label><p role="status" id="capture-status"></p>'
+            '<button>Save to case</button> <button type="button" id="capture-cancel">Cancel</button></form></dialog>'
             f'<article>{article}</article>')

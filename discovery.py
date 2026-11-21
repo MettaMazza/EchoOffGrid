@@ -124,6 +124,10 @@ def search(kind, query, page):
 def init(db):
     db.execute("CREATE TABLE IF NOT EXISTS discovery_cart(id TEXT PRIMARY KEY REFERENCES discovery_item(id))")
     db.execute("CREATE TABLE IF NOT EXISTS transfer_progress(id TEXT PRIMARY KEY,received INTEGER,total INTEGER)")
+    db.execute("CREATE TABLE IF NOT EXISTS series_parts(id TEXT,sequence INTEGER,title TEXT,PRIMARY KEY(id,sequence))")
+    db.execute("CREATE TABLE IF NOT EXISTS cancelled_transfer(source TEXT PRIMARY KEY)")
+    db.execute("CREATE TABLE IF NOT EXISTS removed_item(id TEXT PRIMARY KEY)")
+    db.execute("CREATE TABLE IF NOT EXISTS remove_download(id TEXT PRIMARY KEY)")
     db.execute("CREATE TABLE IF NOT EXISTS discovery_file(id TEXT,sequence INTEGER,title TEXT,filename TEXT,PRIMARY KEY(id,sequence))")
     db.execute("""CREATE TABLE IF NOT EXISTS discovery_item(id TEXT PRIMARY KEY,kind TEXT,title TEXT,preview TEXT,rights TEXT,url TEXT,ext TEXT,provider TEXT,filename TEXT)""")
     db.execute("""CREATE TABLE IF NOT EXISTS discovery_page(kind TEXT,query TEXT,page INTEGER,items TEXT,more INTEGER,PRIMARY KEY(kind,query,page))""")
@@ -159,8 +163,30 @@ def commons_video(item):
     return (item["title"],item["url"],item["ext"],info.get("size"),info.get("sha1"))
 
 
+def archive_videos(record):
+    formats=(".mp4",".webm",".ogv",".mkv",".m4v",".mov",".avi")
+    entries={}
+    for f in record.get("files",[]):
+        name=f.get("name","")
+        ext=Path(name).suffix.lower()
+        if ext not in formats or f.get("private") or not str(f.get("size","")).isdigit():
+            continue
+        group=f.get("original") or name
+        rank=(formats.index(ext),name)
+        if group not in entries or rank<entries[group][0]:
+            entries[group]=(rank,(formats.index(ext),name,int(f["size"]),f.get("sha1")))
+    def order(entry):
+        name=entry[1][1].casefold()
+        season=re.search(r"(?:s(?:eason)?[ ._-]*(\d+)[ ._-]*e(?:pisode)?[ ._-]*(\d+)|\b(\d+)x(\d+))",name)
+        episode=re.search(r"(?:\bepisode[ ._-]*| - )(\d+)(?:\b|_)",name)
+        number=tuple(map(int,filter(None,season.groups()))) if season else (0,int(episode[1])) if episode else (10**9,0)
+        return number,[int(x) if idx%2 else x for idx,x in enumerate(re.split(r"(\d+)",name))]
+    return [v[1] for v in sorted(entries.values(),key=order)]
+
+
 def download(db,root,item):
     url,ext=item["url"],item["ext"]
+    series=False
     size=None
     checksum=None
     if item["provider"]=="LibriVox":
@@ -185,9 +211,12 @@ def download(db,root,item):
             suffix=Path(name).suffix.lower()
             if suffix in formats[item["kind"]] and not f.get("private") and str(f.get("size","")).isdigit():
                 choices.append((formats[item["kind"]].index(suffix),name,int(f["size"]),f.get("sha1")))
+        if item["kind"] in ("Films","Shows"):
+            choices=archive_videos(record)
+            series=len(choices)>1
         if not choices: raise ValueError("No downloadable file in a supported format")
         preferred=min(x[0] for x in choices)
-        matches=sorted(x for x in choices if x[0]==preferred)
+        matches=choices if item["kind"] in ("Films","Shows") else sorted(x for x in choices if x[0]==preferred)
         if item["kind"] == "Audiobooks":
             names = {entry[1] for entry in matches}
             matches = [entry for entry in matches if Path(entry[1]).stem + "_64kb.mp3" not in names]
@@ -196,7 +225,7 @@ def download(db,root,item):
             ext=Path(name).suffix.lower()
             media_url="https://archive.org/download/"+item["url"].rsplit("/",1)[1]+"/"+quote(name,safe="/")
             files.append((name,media_url,ext,size,checksum))
-        if item["kind"] in ("Books","Films"):
+        if item["kind"]=="Books":
             files=[max(files,key=lambda x:x[3])]
     else:
         files=[(item["title"],url,ext,None,None)]
@@ -204,11 +233,39 @@ def download(db,root,item):
     total_bytes = sum(size or 0 for _,_,_,size,_ in files)
     finished_bytes = 0
     first_filename = None
+    existing={r[0]:r[1] for r in db.execute("SELECT title,filename FROM discovery_file WHERE id=?",(item["id"],))}
+    indexed=set(existing)
+    if series:
+        first_plan=not db.execute("SELECT 1 FROM series_parts WHERE id=? LIMIT 1",(item["id"],)).fetchone()
+        # Migrate the complete or partial file from the former largest-MP4 selection.
+        legacy=[v for v in files if v[2] in (".mp4",".webm",".ogv")]
+        legacy_ext=next((ext for ext in (".mp4",".webm",".ogv") if any(v[2]==ext for v in legacy)),None)
+        old=max((v for v in legacy if v[2]==legacy_ext),key=lambda v:v[3],default=None)
+        if old:
+            old_name=item["id"]+old[2]
+            if (root/old_name).exists() or (root/(old_name+".part")).exists():
+                existing.setdefault(old[0],old_name)
+        with db:
+            db.execute("DELETE FROM series_parts WHERE id=?",(item["id"],))
+            db.executemany("INSERT INTO series_parts VALUES(?,?,?)",((item["id"],n,v[0]) for n,v in enumerate(files)))
+            db.execute("UPDATE discovery_item SET kind='Shows' WHERE id=?",(item["id"],))
+            for n,(name,*_) in enumerate(files):
+                if name in indexed and (root/existing[name]).is_file():
+                    db.execute("DELETE FROM discovery_file WHERE id=? AND title=?",(item["id"],name))
+            for n,(name,*_) in enumerate(files):
+                if name in indexed and (root/existing[name]).is_file():
+                    db.execute("INSERT OR REPLACE INTO discovery_file VALUES(?,?,?,?)",(item["id"],n,name,existing[name]))
+        if first_plan:return False
     for idx,(name,url,ext,size,checksum) in enumerate(files):
         filename=item["id"] + (f"-{idx+1}" if len(files)>1 else "") + ext
+        if series:
+            filename=existing.get(name,item["id"]+"-"+hashlib.sha256(name.encode()).hexdigest()[:24]+ext)
         if idx == 0:
             first_filename = filename
         target=root/filename
+        if series and existing.get(name)==filename and target.is_file() and target.stat().st_size==size and db.execute("SELECT 1 FROM discovery_file WHERE id=? AND sequence=? AND filename=?",(item["id"],idx,filename)).fetchone():
+            finished_bytes+=size
+            continue
         sha256=next((v[3] for v in INSTALLERS.values() if v[0]==url),None)
         if item["provider"] in ("F-Droid","Debian"):
             url,separator,sha256=url.partition("#sha256=")
@@ -216,6 +273,10 @@ def download(db,root,item):
         if url == ZIP_URL:
             sha256 = ZIP_DIGEST
         def progress(written,total):
+            if db.execute("SELECT 1 FROM cancelled_transfer WHERE source=?",("discover-"+item["id"],)).fetchone():
+                raise ValueError("Transfer cancelled")
+            if db.execute("SELECT 1 FROM remove_download WHERE id=?",(item["id"],)).fetchone():
+                raise ValueError("Removal requested")
             with db:
                 db.execute("INSERT OR REPLACE INTO transfer_progress VALUES(?,?,?)",("discover-"+item["id"],finished_bytes+written,total_bytes or total))
         verified = False
@@ -244,6 +305,10 @@ def download(db,root,item):
         finished_bytes += size or 0
         with db:
             db.execute("INSERT OR REPLACE INTO discovery_file VALUES(?,?,?,?)",(item["id"],idx,name,filename))
+            if series:
+                db.execute("UPDATE discovery_item SET filename=coalesce(filename,?) WHERE id=?",(filename,item["id"]))
+        if series and idx+1<len(files):
+            return False
     with db:
         db.execute("DELETE FROM transfer_progress WHERE id=?", ("discover-"+item["id"],))
         db.execute("UPDATE discovery_item SET filename=? WHERE id=?", (first_filename,item["id"]))
@@ -257,15 +322,27 @@ def download(db,root,item):
 def transfer(target,url,size,checksum,sha256,progress,opener=None):
     root=target.parent
     partial=target.with_suffix(target.suffix+".part")
+    resumable=bool(size and checksum and opener is None)
+    offset=partial.stat().st_size if resumable and partial.is_file() else 0
+    headers={"User-Agent":"EchoOffGrid/1.0"}
+    if resumable and 0<offset<size:
+        headers["Range"]=f"bytes={offset}-"
     try:
-        with (opener or urlopen)(Request(url,headers={"User-Agent":"EchoOffGrid/1.0"}),timeout=35) as response:
+        with (opener or urlopen)(Request(url,headers=headers),timeout=35) as response:
             expected=size or int(response.headers.get("Content-Length") or 0)
-            if expected and expected+64*1024*1024>shutil.disk_usage(root).free: raise ValueError("Insufficient available storage")
+            resume=offset if getattr(response,"status",200)==206 and headers.get("Range") else 0
+            if getattr(response,"status",200)==206 and not response.headers.get("Content-Range","").startswith(f"bytes {resume}-"):
+                raise ValueError("Publisher returned an invalid byte range")
+            if expected and expected-resume+64*1024*1024>shutil.disk_usage(root).free: raise ValueError("Insufficient available storage")
             digest=hashlib.sha1()
             secure_digest=hashlib.sha256()
-            written=0
-            progress(0,expected)
-            with partial.open("wb") as out:
+            written=resume
+            if resume:
+                with partial.open("rb") as inp:
+                    for block in iter(lambda:inp.read(524288),b""):
+                        digest.update(block);secure_digest.update(block)
+            progress(written,expected)
+            with partial.open("ab" if resume else "wb") as out:
                 while chunk:=response.read(512*1024):
                     out.write(chunk)
                     digest.update(chunk)
@@ -273,10 +350,11 @@ def transfer(target,url,size,checksum,sha256,progress,opener=None):
                     written+=len(chunk)
                     if written % (2*1024*1024) == 0: progress(written,expected)
             if not written or expected and expected!=written or checksum and checksum!=digest.hexdigest() or sha256 and sha256!=secure_digest.hexdigest():
+                if written>=expected and expected:partial.unlink(missing_ok=True)
                 raise ValueError("Incomplete download or checksum mismatch")
         partial.replace(target)
     finally:
-        partial.unlink(missing_ok=True)
+        if not resumable:partial.unlink(missing_ok=True)
 
 
 def record_lines(source, data):

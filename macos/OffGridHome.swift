@@ -465,7 +465,9 @@ final class PrivateBrowserPanel:NSView, WKNavigationDelegate {
     let progress=NSTextField(labelWithString:"")
     let back=NSButton(title:"‹ Back",target:nil,action:nil)
     let next=NSButton(title:"Forward ›",target:nil,action:nil)
-    init(port:UInt16, destination:String) {
+    let reviewCapture: ([String:String])->Void
+    init(port:UInt16, destination:String, reviewCapture:@escaping ([String:String])->Void) {
+        self.reviewCapture=reviewCapture
         let config=WKWebViewConfiguration()
         let store=WKWebsiteDataStore.nonPersistent()
         let endpoint=NWEndpoint.hostPort(host:"127.0.0.1",port:NWEndpoint.Port(rawValue:port)!)
@@ -486,12 +488,36 @@ final class PrivateBrowserPanel:NSView, WKNavigationDelegate {
         addressField.target=self;addressField.action=#selector(openAddress)
         addressField.placeholderString="Enter an HTTPS address"
         addressField.setContentHuggingPriority(.defaultLow,for:.horizontal)
-        let bar=NSStackView(views:[back,next,addressField,go,close])
+        let capture=NSButton(title:"Capture to case",target:self,action:#selector(capturePage))
+        let bar=NSStackView(views:[back,next,addressField,go,capture,close])
         for child in [bar,progress,tab] as [NSView]{addSubview(child);child.translatesAutoresizingMaskIntoConstraints=false}
         NSLayoutConstraint.activate([bar.leadingAnchor.constraint(equalTo:leadingAnchor,constant:10),bar.trailingAnchor.constraint(equalTo:trailingAnchor,constant:-10),bar.topAnchor.constraint(equalTo:topAnchor,constant:8),progress.topAnchor.constraint(equalTo:bar.bottomAnchor,constant:3),progress.leadingAnchor.constraint(equalTo:bar.leadingAnchor),tab.topAnchor.constraint(equalTo:progress.bottomAnchor,constant:4),tab.leadingAnchor.constraint(equalTo:leadingAnchor),tab.trailingAnchor.constraint(equalTo:trailingAnchor),tab.bottomAnchor.constraint(equalTo:bottomAnchor)])
         addressField.stringValue=destination;openAddress()
     }
     required init?(coder:NSCoder){fatalError()}
+    @objc func capturePage(){
+        guard let url=tab.url,url.scheme=="https" else{return}
+        let title=tab.title ?? "", captured=ISO8601DateFormatter().string(from:Date())
+        tab.evaluateJavaScript("(()=>{const html=document.documentElement.outerHTML,text=document.body?.innerText||'';return html.length+text.length<=8000000?{html,text}:null})()",in:nil,in:.defaultClient){[weak self] result in
+            guard let self else{return}
+            guard self.tab.url==url, case .success(let value)=result,var page=value as? [String:String] else {
+                self.progress.stringValue="Page changed, unavailable or too large to capture.";return
+            }
+            page["url"]=url.absoluteString;page["title"]=title;page["captured"]=captured
+            let config=WKSnapshotConfiguration()
+            config.snapshotWidth=NSNumber(value:Double(min(1400,self.tab.bounds.width)))
+            self.tab.takeSnapshot(with:config){[weak self] image,_ in
+                guard let self else{return}
+                guard self.tab.url==url,let data=image?.tiffRepresentation,let bitmap=NSBitmapImageRep(data:data),
+                      let jpg=bitmap.representation(using:.jpeg,properties:[.compressionFactor:0.88]) else{
+                    self.progress.stringValue="Could not capture the visible page.";return
+                }
+                page["viewport"]=jpg.base64EncodedString()
+                self.done()
+                self.reviewCapture(page)
+            }
+        }
+    }
     @objc func done(){tab.stopLoading();removeFromSuperview()}
     @objc func previous(){if tab.canGoBack{tab.goBack()}else{done()}}
     @objc func forward(){if tab.canGoForward{tab.goForward()}}
@@ -670,7 +696,11 @@ struct WorkspaceWebView: NSViewRepresentable {
                       let raw=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems?.first(where:{$0.name=="port"})?.value,
                       let port=UInt16(raw),port>1023 else{return}
                 let destination=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems?.first(where:{$0.name=="url"})?.value ?? "https://duckduckgo.com/"
-                let panel=PrivateBrowserPanel(port:port,destination:destination)
+                let panel=PrivateBrowserPanel(port:port,destination:destination){[weak webView] page in
+                    guard let webView,webView.url?.path=="/private-browser",webView.url?.host==self.address.host,
+                          webView.url?.port==self.address.port else{return}
+                    webView.callAsyncJavaScript("await window.echoReviewCapture(page)",arguments:["page":page],in:nil,in:.page,completionHandler:nil)
+                }
                 panel.translatesAutoresizingMaskIntoConstraints=false
                 webView.addSubview(panel)
                 NSLayoutConstraint.activate([panel.leadingAnchor.constraint(equalTo:webView.leadingAnchor),panel.trailingAnchor.constraint(equalTo:webView.trailingAnchor),panel.topAnchor.constraint(equalTo:webView.topAnchor),panel.bottomAnchor.constraint(equalTo:webView.bottomAnchor)])

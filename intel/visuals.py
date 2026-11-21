@@ -101,6 +101,40 @@ def resolve(key,region,day):
         if row['id']==key:return row
     raise ValueError('Unknown visual source')
 
+def local_composite(service, sensor, region, day):
+    """Find an actual local image for this composite, including older regional packs."""
+    from contextlib import closing
+    from .service import connect
+
+    if sensor not in SENSORS:
+        raise ValueError("Choose an imagery sensor.")
+    url = satellite_image(sensor, region, day)
+    stamp = p.utc(day + 'T00:00:00Z')
+    objects = (sensor, region + '-' + day if sensor == 'terra' else sensor)
+    with closing(connect(service.path)) as db:
+        db.execute("ATTACH DATABASE ? AS library", (str(service.archive),))
+        row = db.execute("""
+            SELECT body, received FROM (
+                SELECT body, received FROM obs
+                WHERE region=? AND source='imagery' AND stamp=? AND object IN (?,?)
+                  AND media IS NOT NULL
+                UNION ALL
+                SELECT body, json_extract(body,'$.received') FROM library.intel_saved
+                WHERE region=? AND media IS NOT NULL AND json_extract(body,'$.source')='imagery'
+                  AND json_extract(body,'$.time')=? AND json_extract(body,'$.object') IN (?,?)
+            ) ORDER BY received DESC LIMIT 1
+        """, (region, stamp, *objects) * 2).fetchone()
+    if not row:
+        return None
+    body = json.loads(row['body'])
+    legacy = body['object'] != sensor
+    if legacy:
+        url = p.image_row(region, day)['image_url']
+    return dict(id=body['id'], image='/openintel/image/' + body['id'],
+                day=day, received=row['received'], url=body.get('retrieval_url') or url,
+                projection='EPSG:4326' if legacy else 'EPSG:3857', bounds=body['bounds'])
+
+
 def collect(service,key,region,day):
     from email.utils import parsedate_to_datetime
     from hashlib import sha256

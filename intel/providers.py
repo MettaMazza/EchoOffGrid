@@ -57,9 +57,9 @@ def inside(bounds, lon, lat):
     return bounds[0]<=lon<=bounds[2] and bounds[1]<=lat<=bounds[3]
 
 
-def fetch(url, limit=12_000_000):
+def fetch(url, limit=12_000_000, timeout=12):
     request = Request(url,headers={"User-Agent":"EchoOffGrid/OpenIntel","Accept-Encoding":"gzip","Digitraffic-User":"EchoOffGrid/OpenIntel"})
-    with urlopen(request,timeout=12) as response:
+    with urlopen(request,timeout=timeout) as response:
         with GzipFile(fileobj=response) if response.headers.get("Content-Encoding")=="gzip" else response as stream:
             data=stream.read(limit+1)
         if len(data)>limit:
@@ -91,7 +91,8 @@ def observation(source, obj, title, lat, lon, stamp, detail, **extra):
 
 def aircraft(key):
     _,lat,lon=region(key)
-    data=feed(f"https://api.adsb.lol/v2/point/{lat}/{lon}/100")
+    url=f"https://api.adsb.lol/v2/point/{lat}/{lon}/100"
+    data=feed(url)
     now=float(data["now"])
     if now>1e11:now/=1000
     for a in data["ac"]:
@@ -103,7 +104,8 @@ def aircraft(key):
 
 def finnish_ships(key):
     bounds=extent(key)
-    for row in feed("https://meri.digitraffic.fi/api/ais/v1/locations")["features"]:
+    url="https://meri.digitraffic.fi/api/ais/v1/locations"
+    for row in feed(url)["features"]:
         lon,lat=row["geometry"]["coordinates"][:2]
         p=row["properties"]
         if inside(bounds,lon,lat) and p.get("timestampExternal"):

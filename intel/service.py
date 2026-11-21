@@ -54,6 +54,8 @@ class Intel:
             CREATE TABLE IF NOT EXISTS elements(received INTEGER PRIMARY KEY,body);
             CREATE TABLE IF NOT EXISTS prefs(key PRIMARY KEY,value);
             """)
+            from . import places
+            places.initialize(db)
             self.trim(db)
             db.execute("UPDATE status SET note='Refresh interrupted', next=0 WHERE note='Fetching…'")
             db.commit()
@@ -70,6 +72,63 @@ class Intel:
     def status(self,key):
         with closing(connect(self.path)) as db:
             return {r["source"]:dict(r) for r in db.execute("SELECT source,attempt,next,note FROM status WHERE region IN (?, '*') OR substr(region,1,length(?)+1)=? || ':' ORDER BY attempt",(key,key,key))}
+
+    def track_history(self, key, source, obj, until, page=0):
+        p.region(key)
+        if source not in ("air", "ships") or not obj or len(obj) > 96:
+            raise ValueError("Choose a recorded aircraft or vessel.")
+        if page < 0 or page > 100000 or until <= 0:
+            raise ValueError("Invalid history window.")
+        with closing(connect(self.path)) as db:
+            db.execute("ATTACH DATABASE ? AS library", (str(self.archive),))
+            records = db.execute("""
+                WITH history AS (
+                    SELECT id, stamp, body, received FROM obs
+                    WHERE region=? AND source=? AND object=? AND stamp<=?
+                    UNION ALL
+                    SELECT id, json_extract(body,'$.time'), body, json_extract(body,'$.received')
+                    FROM library.intel_saved WHERE region=? AND json_extract(body,'$.source')=?
+                    AND json_extract(body,'$.object')=? AND json_extract(body,'$.time')<=?
+                    AND NOT EXISTS (SELECT 1 FROM obs WHERE obs.region=library.intel_saved.region
+                                    AND obs.id=library.intel_saved.id)
+                )
+                SELECT body, received FROM history ORDER BY stamp DESC,id DESC LIMIT 51 OFFSET ?
+            """, (key, source, obj, until) * 2 + (page * 50,)).fetchall()
+        rows = [dict(json.loads(r["body"]), received=r["received"]) for r in records]
+        for newer, older in zip(rows, rows[1:]):
+            newer["interval"] = newer["time"] - older["time"]
+        return {"rows": rows[:50], "more": len(rows) > 50, "gap_seconds": 900,
+                "publisher": p.SOURCES[source][1], "url": p.SOURCES[source][6]}
+
+    def coverage(self, key, start, end):
+        region_name = p.region(key)[0]
+        try:
+            bounds = [int(datetime.strptime(value, "%Y-%m-%dT%H:%M")
+                          .replace(tzinfo=timezone.utc).timestamp()) for value in (start, end)]
+        except (ValueError, OverflowError):
+            raise ValueError("Enter both dates and times in UTC.") from None
+        if bounds[0] >= bounds[1]:
+            raise ValueError("The end must come after the start.")
+        # UNION counts each record once even after it has been saved permanently.
+        with closing(connect(self.path)) as db:
+            db.execute("ATTACH DATABASE ? AS library", (str(self.archive),))
+            rows = db.execute("""
+                WITH records AS (
+                    SELECT id, source, stamp FROM obs WHERE region=? AND stamp>=? AND stamp<?
+                    UNION
+                    SELECT id, json_extract(body,'$.source'), json_extract(body,'$.time')
+                    FROM library.intel_saved WHERE region=? AND json_extract(body,'$.time')>=?
+                    AND json_extract(body,'$.time')<?
+                )
+                SELECT source, count(*) AS count, min(stamp) AS first, max(stamp) AS last
+                FROM records GROUP BY source
+            """, (key, *bounds, key, *bounds))
+            counts = {row["source"]: dict(row) for row in rows}
+        sources = []
+        for source, metadata in p.SOURCES.items():
+            row = counts.get(source, {"count": 0, "first": None, "last": None})
+            sources.append(dict(row, source=source, title=metadata[1], access=metadata[4]))
+        return {"region": region_name, "sources": sources}
 
     def refresh(self,key,sources,day=None):
         _,lat,lon=p.region(key)

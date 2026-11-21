@@ -44,6 +44,55 @@
     try{await post('refresh',{sources:Object.keys(model.sources).filter(s=>!disabled.has(model.sources[s].layer))});await load()}
     catch(e){say(e.message)}finally{polling=false}
   }
+  const trackDialog = $('#track-history');
+  let trackRequest = 0, trackPage = 0, trackQuery;
+  async function trackReports(page) {
+    const serial = ++trackRequest;
+    const summary = $('#track-summary'), list = $('#track-reports');
+    const prev = $('#track-prev'), next = $('#track-next');
+    prev.disabled = next.disabled = true;
+    summary.textContent = 'Loading local reports…';
+    list.replaceChildren();
+    try {
+      const response = await fetch('/openintel/history?' + new URLSearchParams({...trackQuery, page}));
+      const data = await response.json();
+      if (serial !== trackRequest) return;
+      if (!response.ok) throw Error(data.error || 'Could not open report history');
+      trackPage = page;
+      const publisher = text('a',data.publisher);
+      publisher.href = data.url;
+      summary.replaceChildren(publisher, document.createTextNode(' · '+trackQuery.object+' · '+(data.rows.length ?
+        'Newest first. Intervals over 15 minutes are marked as gaps.' : 'No retained reports for this selection.')));
+      for (const row of data.rows) {
+        const item = document.createElement('li');
+        item.append(text('strong', 'Observed '+new Date(row.time*1000).toISOString()),
+          text('span', row.lat.toFixed(4)+'°, '+row.lon.toFixed(4)+'° · '+row.detail));
+        if (row.received) item.append(text('small','Retrieved '+clock(row.received)));
+        if (/^https:\/\/(api\.adsb\.lol|meri\.digitraffic\.fi)\//.test(row.retrieval_url || '')) {
+          const link = text('a','Publisher feed ↗');
+          link.href = row.retrieval_url;
+          item.append(link);
+        }
+        if (row.revises) item.append(text('small','Earlier record revised'));
+        if (row.interval > data.gap_seconds) item.append(text('em','Gap before this report · '+Math.round(row.interval/60)+' min'));
+        list.append(item);
+      }
+      prev.disabled = page === 0;
+      next.disabled = !data.more;
+    } catch (err) {
+      if (serial === trackRequest) { summary.textContent = err.message; prev.disabled = page === 0; }
+    }
+  }
+  $('#track-close').onclick = () => trackDialog.close();
+  trackDialog.onclose = () => {if (!trackDialog.open) trackRequest++};
+  $('#track-prev').onclick = () => trackReports(trackPage-1);
+  $('#track-next').onclick = () => trackReports(trackPage+1);
+  function openTrack(row) {
+    trackQuery = {region, source:row.source, object:row.object, until:at || model.now};
+    $('#track-title').textContent = row.title+' · Report history';
+    trackDialog.showModal();
+    trackReports(0);
+  }
   function render(){
     if(!model)return;
     all('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===mode)));
@@ -70,6 +119,8 @@
       if(r.media){const img=document.createElement('img');img.src='/openintel/image/'+r.id;img.alt=r.title;detail.append(img)}
       detail.append(text('p',r.detail),text('strong',r.source==='orbit'?'Predicted for '+clock(r.time):(r.source==='imagery'?'Composite day · '+clock(r.time).slice(0,10):(r.time_basis||'Observed')+' '+clock(r.time))),text('span',(r.publisher||info.title)+' · '+info.rights));
       if(r.received)detail.append(text('span','Fetched '+clock(r.received)));
+      if(mode!=='sample' && ['air','ships'].includes(r.source)) detail.append(button('View report history',()=>openTrack(r)));
+      if(r.source==='ais') detail.append(text('small','AISStream provides live positions only. This feed has no retained track history.'));
       if(r.epoch){detail.append(text('span','Orbital elements '+clock(r.epoch)));
         detail.append(text('p',r.window?'Pass above 10° · '+clock(r.window.start)+' to '+clock(r.window.end)+' · peak '+r.window.peak+'°':'No pass above 10° in the next 36 hours.'))}
       if(!r.no_map_point)detail.append(text('span',r.lat.toFixed(3)+'°, '+r.lon.toFixed(3)+'°'));

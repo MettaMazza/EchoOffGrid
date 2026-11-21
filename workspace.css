@@ -255,3 +255,18 @@ button.workstation-back:hover,button.workstation-back:focus-visible{background:#
 
 .phone-vpn-toggle {display:inline-flex;align-items:center;min-height:36px;border:1px solid currentColor;border-radius:18px;padding:0 .75rem;font-size:.82rem;white-space:normal;text-decoration:none;}
 .phone-vpn-toggle[aria-checked=true] {background:#214334;color:#b5f5ca;}
+
+.series-hero{display:block;width:min(100%,52rem);max-height:18rem;object-fit:cover;margin:1rem 0}
+.episode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,10rem),1fr));gap:1rem;list-style:none;margin:1rem 0;padding:0}
+.episode-grid li{min-width:0;overflow-wrap:anywhere}.episode-grid .item{display:block}
+.episode-pending{align-self:end;color:var(--muted);padding:.65rem;border-bottom:1px solid var(--line)}
+.episode-pending small{display:block}
+body{caret-color:transparent}
+input,textarea,[contenteditable]:not([contenteditable=false]){caret-color:auto}
+
+.episode-grid .thumb{background-image:var(--collection-cover);background-position:center;background-size:cover}
+
+html.video-pip, .video-pip body {background:#000;overflow:hidden}
+.video-pip body * {visibility:hidden!important}
+.video-pip main video[controls] {visibility:visible!important;position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;margin:0!important;object-fit:contain;background:#000}
+.video-pip video::-webkit-media-controls {display:none!important}

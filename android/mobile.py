@@ -19,7 +19,36 @@ def start(root, native, token):
     os.environ["SSL_CERT_FILE"] = str(Path(__file__).with_name("cacert.pem"))
     server = dashboard.create_server(0, root / "archive.sqlite3", kit=kit)
     class MobileDashboard(dashboard.Dashboard):
+        def do_POST(self):
+            if self.path == "/mobile-file-title" and self.local_request() and self.headers.get("X-Echo-Native") == "1":
+                from contextlib import closing
+                import json
+                length=int(self.headers.get("Content-Length",0))
+                if not 0 < length <= 8192:
+                    self.send_error(400);return
+                data=json.loads(self.rfile.read(length))
+                with closing(dashboard.connect(server.database)) as db, db:
+                    db.execute("UPDATE discovery_item SET title=? WHERE id=? AND provider='Personal library'",(data["title"][:400],data["id"]))
+                self.send_response(204);self.end_headers();return
+            super().do_POST()
+
         def do_GET(self):
+            from urllib.parse import urlsplit,parse_qs
+            if urlsplit(self.path).path == "/mobile-file-name" and self.local_request() and self.headers.get("X-Echo-Native") == "1":
+                from contextlib import closing
+                q=parse_qs(urlsplit(self.path).query)
+                key=q.get("id",[""])[0]
+                part=q.get("part",["0"])[0]
+                if not part.isdecimal() or len(part)>6:
+                    self.send_error(400);return
+                with closing(dashboard.connect(server.database)) as db:
+                    row=db.execute("SELECT filename FROM discovery_file WHERE id=? AND sequence=?",(key,int(part))).fetchone()
+                    if not row and part=="0":
+                        row=db.execute("SELECT filename FROM discovery_item WHERE id=?",(key,)).fetchone()
+                if not row or not row[0]:
+                    self.send_error(404);return
+                body=row[0].encode()
+                self.send_response(200);self.send_header("Content-Length",str(len(body)));self.end_headers();self.wfile.write(body);return
             if self.path == "/mobile-transfer-count" and self.local_request():
                 from contextlib import closing
                 with closing(dashboard.connect(server.database)) as db:

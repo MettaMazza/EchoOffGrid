@@ -194,6 +194,7 @@ def seed_pictures(db,folder):
     for photo in json.loads((source/"credits.json").read_text()):
         name=photo["file"]
         key=sha256(photo["source"].encode()).hexdigest()
+        if db.execute("SELECT 1 FROM removed_item WHERE id=?",(key,)).fetchone():continue
         filename=key+".jpg"
         if not (dest/filename).exists():
             with NamedTemporaryFile(dir=dest,delete=False) as out, (source/name).open("rb") as inp:
@@ -226,6 +227,7 @@ def seed_empty_shelves(db, folder, kit):
             if any(p.suffix.lower() in formats and p.is_file() and not any(part.startswith(".") for part in p.relative_to(base).parts) for p in base.rglob("*")):
                 continue
         key = sha256(("EchoOffGrid starter " + asset).encode()).hexdigest()
+        if db.execute("SELECT 1 FROM removed_item WHERE id=?",(key,)).fetchone():continue
         suffix = Path(asset).suffix
         filename = key + suffix
         with NamedTemporaryFile(dir=destination, delete=False) as tmp, (source / asset).open("rb") as sample:

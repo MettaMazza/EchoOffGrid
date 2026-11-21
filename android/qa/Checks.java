@@ -17,9 +17,9 @@ public class Checks extends Instrumentation {
     private int reviewCaptureOwner;
     private boolean exportsOnly, tabsOnly, corpoOnly, casesOnly, visualsOnly, drawerOnly, intelOnly, historyOnly, govOnly, privateCheck, gamesOnly, mediaOnly, bridgeOnly;
     private String backgroundMode, seriesIds, cancelId;
-    private String filmId, exportCase;
+    private String filmId, exportCase, repairVideo;
     private boolean protectedLink;
-    @Override public void onCreate(Bundle args) {super.onCreate(args);trackHistory=args!=null && "1".equals(args.getString("tracks"));geography=args!=null && "1".equals(args.getString("geography"));vpnRegion=args!=null && "1".equals(args.getString("vpnRegion"));shelvesOnly=args!=null && "1".equals(args.getString("shelves"));reviewCaptureOwner=args==null?0:Integer.parseInt(args.getString("reviewCapture","0"));captureOnly=args!=null && "1".equals(args.getString("capture"));seriesIds=args==null?null:args.getString("series");cancelId=args==null?null:args.getString("cancel");backgroundMode=args==null?null:args.getString("background");protectedLink=args!=null && "1".equals(args.getString("protectedLink"));exportsOnly=args!=null && "1".equals(args.getString("exports"));tabsOnly=args!=null && "1".equals(args.getString("tabs"));corpoOnly=args!=null && "1".equals(args.getString("corpo"));exportCase=args==null?null:args.getString("exportCase");casesOnly=args!=null && "1".equals(args.getString("cases"));visualsOnly=args!=null && "1".equals(args.getString("visuals"));drawerOnly=args!=null && "1".equals(args.getString("drawer"));intelOnly=args!=null && "1".equals(args.getString("intel"));historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
+    @Override public void onCreate(Bundle args) {super.onCreate(args);repairVideo=args==null?null:args.getString("repairVideo");trackHistory=args!=null && "1".equals(args.getString("tracks"));geography=args!=null && "1".equals(args.getString("geography"));vpnRegion=args!=null && "1".equals(args.getString("vpnRegion"));shelvesOnly=args!=null && "1".equals(args.getString("shelves"));reviewCaptureOwner=args==null?0:Integer.parseInt(args.getString("reviewCapture","0"));captureOnly=args!=null && "1".equals(args.getString("capture"));seriesIds=args==null?null:args.getString("series");cancelId=args==null?null:args.getString("cancel");backgroundMode=args==null?null:args.getString("background");protectedLink=args!=null && "1".equals(args.getString("protectedLink"));exportsOnly=args!=null && "1".equals(args.getString("exports"));tabsOnly=args!=null && "1".equals(args.getString("tabs"));corpoOnly=args!=null && "1".equals(args.getString("corpo"));exportCase=args==null?null:args.getString("exportCase");casesOnly=args!=null && "1".equals(args.getString("cases"));visualsOnly=args!=null && "1".equals(args.getString("visuals"));drawerOnly=args!=null && "1".equals(args.getString("drawer"));intelOnly=args!=null && "1".equals(args.getString("intel"));historyOnly=args!=null && "1".equals(args.getString("history"));govOnly=args!=null && "1".equals(args.getString("opengov"));bridgeOnly=args!=null && "1".equals(args.getString("bridge"));mediaOnly=args!=null && "1".equals(args.getString("media"));filmId=args==null?null:args.getString("film");gamesOnly=args!=null && "1".equals(args.getString("games"));privateCheck=args!=null && "1".equals(args.getString("private"));start();}
     WebView locate(View view) {
         if (view instanceof WebView) return (WebView)view;
         if (view instanceof ViewGroup) {
@@ -562,6 +562,12 @@ public class Checks extends Instrumentation {
         awaitWeb("document.querySelector('.library-delete-dialog').open",3);
         js("document.querySelector('.library-delete-dialog button[value=cancel]').click()");
         if(!"true".equals(js("!!"+card)))throw new IOException("Cancel lost the test title");
+        js(card+".parentElement.querySelector('.grid-move').click();let d=document.querySelector('.confirm-move').closest('dialog');d.querySelector('select').value='documents';d.querySelector('.confirm-move').click()");
+        awaitWeb("!"+card,10);
+        navigate("/library/documents");
+        if(!"true".equals(js("!!"+card)))throw new IOException("Moved title missing from Documents");
+        if(!get("/content-file/"+key,"Temporary library QA").startsWith("Temporary library QA"))throw new IOException("Move changed file");
+        results.putString("Move","Book moved from Books to Documents with original bytes retained");
         js(card+".parentElement.querySelector('.grid-delete').click();document.querySelector('.delete-title').click()");
         awaitWeb("!"+card,10);
         File disposable=new File(getTargetContext().getExternalFilesDir(null),"Workstation/Content/"+key+".txt");
@@ -665,6 +671,26 @@ public class Checks extends Instrumentation {
                 Thread.sleep(100);
             }
             if(cookie==null) throw new IOException("Local dashboard did not open");
+            if(repairVideo!=null){
+                if(!repairVideo.matches("[0-9a-f]{64}"))throw new IOException("Invalid video key");
+                String page="/content/"+repairVideo;
+                navigate(page+"?episodes=1");
+                js("document.querySelector('form[action=\"/discover/add\"]').requestSubmit()");
+                boolean ready=false;
+                for(int n=0;n<240;n++){
+                    if(get(page+"?episodes=1","</html>").contains("<video controls")){ready=true;break;}
+                    Thread.sleep(500);
+                }
+                if(!ready)throw new IOException("Compatible video not ready");
+                navigate(page+"?episodes=1");
+                js("document.querySelector('video').play()");
+                awaitWeb("document.querySelector('video')?.currentTime>0.5",30);
+                js("let img=new Image();img.onload=()=>window.posterWidth=img.naturalWidth;img.src=document.querySelector('video').poster");
+                awaitWeb("window.posterWidth>100",20);
+                results.putString("Movie","Inline player advanced, poster width "+js("window.posterWidth"));
+                js("document.querySelector('video').pause()");
+                finish(Activity.RESULT_OK,results);return;
+            }
             if(fixture!=null){checkSeriesPlayback(fixture);finish(Activity.RESULT_OK,results);return;}
             if(seriesIds!=null){
                 String[] ids=seriesIds.split(",");

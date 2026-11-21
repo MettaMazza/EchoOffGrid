@@ -122,6 +122,10 @@ def search(kind, query, page):
 
 
 def init(db):
+    db.execute("CREATE TABLE IF NOT EXISTS library_shelf(id TEXT PRIMARY KEY,kind TEXT NOT NULL)")
+    db.execute("""CREATE VIEW IF NOT EXISTS library_item AS
+        SELECT i.id,i.title,i.filename,coalesce(s.kind,i.kind) AS kind FROM discovery_item i
+        LEFT JOIN library_shelf s ON s.id=i.id WHERE i.filename IS NOT NULL""")
     db.execute("CREATE TABLE IF NOT EXISTS discovery_cart(id TEXT PRIMARY KEY REFERENCES discovery_item(id))")
     db.execute("CREATE TABLE IF NOT EXISTS transfer_progress(id TEXT PRIMARY KEY,received INTEGER,total INTEGER)")
     db.execute("CREATE TABLE IF NOT EXISTS episode_progress(id TEXT,title TEXT,position_ms INTEGER,duration_ms INTEGER,finished INTEGER,updated INTEGER,PRIMARY KEY(id,title))")
@@ -172,7 +176,7 @@ def archive_videos(record):
         ext=Path(name).suffix.lower()
         if ext not in formats or f.get("private") or not str(f.get("size","")).isdigit():
             continue
-        group=f.get("original") or name
+        group=Path(f.get("original") or name).with_suffix("").as_posix().casefold()
         rank=(formats.index(ext),name)
         if group not in entries or rank<entries[group][0]:
             entries[group]=(rank,(formats.index(ext),name,int(f["size"]),f.get("sha1")))
@@ -259,6 +263,8 @@ def download(db,root,item):
         if first_plan:return False
     for idx,(name,url,ext,size,checksum) in enumerate(files):
         filename=item["id"] + (f"-{idx+1}" if len(files)>1 else "") + ext
+        if not series and name in existing:
+            filename=existing[name]
         if series:
             filename=existing.get(name,item["id"]+"-"+hashlib.sha256(name.encode()).hexdigest()[:24]+ext)
         if idx == 0:
@@ -305,6 +311,16 @@ def download(db,root,item):
                     raise ValueError("Publisher returned a page instead of the requested PDF")
         finished_bytes += size or 0
         with db:
+            if (not series and item["provider"]=="Internet Archive" and item["kind"] in ("Films","Shows")
+                    and db.execute("SELECT 1 FROM series_parts WHERE id=?",(item["id"],)).fetchone()):
+                # An older index could mistake two encodings of a single film for episodes.
+                # Keep already downloaded originals accessible as alternative files.
+                db.execute("DELETE FROM discovery_file WHERE id=?",(item["id"],))
+                alternatives=[(title,path) for title,path in existing.items() if path!=filename and (root/path).is_file()]
+                db.executemany("INSERT INTO discovery_file VALUES(?,?,?,?)",
+                               ((item["id"],n,title,path) for n,(title,path) in enumerate(alternatives,1)))
+                db.execute("DELETE FROM series_parts WHERE id=?",(item["id"],))
+                db.execute("UPDATE discovery_item SET kind='Films' WHERE id=?",(item["id"],))
             db.execute("INSERT OR REPLACE INTO discovery_file VALUES(?,?,?,?)",(item["id"],idx,name,filename))
             if series:
                 db.execute("UPDATE discovery_item SET filename=coalesce(filename,?) WHERE id=?",(filename,item["id"]))

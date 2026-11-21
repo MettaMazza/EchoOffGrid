@@ -55,6 +55,10 @@ class SeriesRecovery(unittest.TestCase):
             self.assertEqual(unrelated.read_bytes(), b"keep")
             self.assertIsNone(db.execute("SELECT filename FROM discovery_item WHERE id=?",(key,)).fetchone()[0])
 
+    def test_unlinked_alternate_encodings_are_one_movie(self):
+        record={"files":[{"name":"Feature.mkv","size":"400"},{"name":"Feature.mp4","size":"100"}]}
+        self.assertEqual([v[1] for v in discovery.archive_videos(record)],["Feature.mp4"])
+
     def test_resumes_from_verified_range(self):
         class Reply(BytesIO):
             status = 206

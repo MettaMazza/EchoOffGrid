@@ -11,7 +11,7 @@
 | Apple Silicon Mac · macOS 15 or later | [Download for Mac (.pkg)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-5/EchoOffGrid.pkg) |
 | arm64 Android · Android 9 or later | [Download for Android (.apk)](https://github.com/MettaMazza/EchoOffGrid/releases/download/preview-5/EchoOffGrid-arm64.apk) |
 
-Delete downloaded or imported titles directly from the Library grid. With autoplay enabled, a series starts at episode one or resumes your latest episode on this device. Up Next follows episode order, and thumbnail bars show your progress.
+Move downloaded or imported titles between shelves, or delete them directly from the Library grid. With autoplay enabled, a series starts at episode one or resumes your latest episode on this device. Up Next follows episode order, and thumbnail bars show your progress.
 
 On Android, downloads, audiobooks and Read Aloud can continue with the screen locked. Press Home or swipe up to go home during video playback to keep watching in a floating window. The upper-left menu opens every section. Tap the floating mint icon to launch your installed EchoLite app, or drag it to reposition it.
 

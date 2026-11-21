@@ -272,7 +272,8 @@ html.video-pip, .video-pip body {background:#000;overflow:hidden}
 .video-pip video::-webkit-media-controls {display:none!important}
 
 .managed-grid-item{min-width:0;display:grid;gap:.25rem}
-.grid-delete{justify-self:start;font-size:.8rem;padding:.35rem .65rem}
+.grid-actions{display:flex;gap:.45rem;flex-wrap:wrap}
+.grid-delete,.grid-move{justify-self:start;font-size:.8rem;padding:.35rem .65rem}
 .library-delete-dialog{width:min(25rem,88vw);background:var(--panel,#1c2228);color:inherit;border:1px solid #718d80}
 .library-delete-dialog::backdrop{background:#000a}
 .library-delete-dialog h3{overflow-wrap:anywhere}

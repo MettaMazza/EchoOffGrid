@@ -358,6 +358,36 @@ if(managedCards.length){
   dialog.className='library-delete-dialog';
   dialog.innerHTML='<form method="dialog"><h3></h3><p>Delete the files saved on this device for this title, including any downloaded episodes and unfinished transfers?</p><output role="status"></output><div><button value="cancel" autofocus>Cancel</button> <button type="button" class="delete-title">Delete from device</button></div></form>';
   document.body.append(dialog);
+  const moveDialog=document.createElement('dialog');
+  moveDialog.className='library-delete-dialog';
+  moveDialog.innerHTML='<form method="dialog"><h3></h3><label>Destination shelf <select></select></label><output role="status"></output><div><button value="cancel">Cancel</button> <button type="button" class="confirm-move">Move to shelf</button></div></form>';
+  const destination=moveDialog.querySelector('select');
+  const shelves={watch:'Videos',shows:'Shows',books:'Books',listen:'Audio',games:'Games',software:'Software',pictures:'Pictures',documents:'Documents',guides:'Guides',maps:'Printable maps'};
+  for(const [value,label] of Object.entries(shelves)){
+    if(location.pathname!=='/library/'+value)destination.add(new Option(label,value));
+  }
+  document.body.append(moveDialog);
+  const moveSubmit=moveDialog.querySelector('.confirm-move');
+  moveSubmit.onclick=async()=>{
+    if(!selected || moveSubmit.disabled)return;
+    const {key,wrapper}=selected;
+    const shelf=destination.value;
+    moveSubmit.disabled=true;
+    try{
+      const response=await fetch('/library/move',{method:'POST',body:new URLSearchParams({
+        token:document.querySelector('#reader-tools').dataset.token,item:key,shelf
+      })});
+      if(!response.ok)throw Error('Could not move this title. Please try again.');
+      wrapper.remove();moveDialog.close();
+      const notice=document.querySelector('#match-count');
+      if(notice){
+        const link=document.createElement('a');
+        link.href='/library/'+shelf;link.textContent=shelves[shelf];
+        notice.replaceChildren('Moved to ',link);
+      }
+    }catch(error){moveDialog.querySelector('output').textContent=error.message;}
+    finally{moveSubmit.disabled=false;}
+  };
   let selected=null;
   const confirm=dialog.querySelector('.delete-title'), message=dialog.querySelector('output');
   confirm.onclick=async()=>{
@@ -393,7 +423,15 @@ if(managedCards.length){
       selected={key,wrapper};dialog.querySelector('h3').textContent='Delete '+title+'?';
       message.textContent='';dialog.showModal();
     };
-    wrapper.append(button);
+    const move=document.createElement('button');
+    move.type='button';move.className='grid-move';move.textContent='Move';
+    move.setAttribute('aria-label','Move '+title);
+    move.onclick=()=>{
+      selected={key,wrapper};moveDialog.querySelector('h3').textContent='Move '+title;
+      moveDialog.querySelector('output').textContent='';moveDialog.showModal();
+    };
+    const actions=document.createElement('div');actions.className='grid-actions';
+    actions.append(button,move);wrapper.append(actions);
   }
 }
 

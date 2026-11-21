@@ -387,7 +387,7 @@ class Downloads:
                 file.unlink(missing_ok=True)
                 (root/".thumbnails"/(file.name+".jpg")).unlink(missing_ok=True)
         db.execute("INSERT OR IGNORE INTO removed_item VALUES(?)",(key,))
-        for table in ("discovery_file","series_parts","episode_progress","discovery_cart","remove_download"):
+        for table in ("discovery_file","series_parts","library_shelf","episode_progress","discovery_cart","remove_download"):
             db.execute(f"DELETE FROM {table} WHERE id=?",(key,))
         db.execute("UPDATE discovery_item SET filename=NULL WHERE id=?",(key,))
         for table,col in (("content_download","source"),("download_backoff","source"),("transfer_progress","id")):
@@ -555,7 +555,7 @@ class Dashboard(BaseHTTPRequestHandler):
         features = "".join(f'<a class=tile href="{url}"><strong>{title}</strong><small>{detail}</small></a>' for url,title,detail in tiles)
         sections = []
         with closing(connect(self.server.database)) as db:
-            downloaded = db.execute(f"SELECT id,title,kind,watched FROM discovery_item LEFT JOIN ({VIDEO_SHELF_PROGRESS}) USING(id) WHERE filename IS NOT NULL ORDER BY title").fetchall()
+            downloaded = db.execute(f"SELECT id,title,kind,watched FROM library_item LEFT JOIN ({VIDEO_SHELF_PROGRESS}) USING(id) WHERE filename IS NOT NULL ORDER BY title").fetchall()
         for kind in ("watch","shows","books","listen"):
             name = GROUPS[kind][0]
             extra = self.download_cards(kind, (row for row in downloaded if row["kind"] == CATALOG_KINDS[kind]))
@@ -638,7 +638,7 @@ class Dashboard(BaseHTTPRequestHandler):
         items=[]
         with closing(connect(self.server.database)) as db:
             for shelf in ("watch","shows"):
-                rows=db.execute("SELECT id,title FROM discovery_item WHERE kind=? AND filename IS NOT NULL ORDER BY title,id",(CATALOG_KINDS[shelf],))
+                rows=db.execute("SELECT id,title FROM library_item WHERE kind=? AND filename IS NOT NULL ORDER BY title,id",(CATALOG_KINDS[shelf],))
                 items.extend(("/content/"+row["id"],self.download_cards(shelf,[row])) for row in rows)
                 items.extend(kit_cards(self.server.kit,shelf))
         index=next((i for i,item in enumerate(items) if item[0]==current),-1)
@@ -695,10 +695,10 @@ class Dashboard(BaseHTTPRequestHandler):
         saved = []
         if catalogue:
             with closing(connect(self.server.database)) as db:
-                saved=db.execute(f"SELECT id,title,watched FROM discovery_item LEFT JOIN ({VIDEO_SHELF_PROGRESS}) USING(id) WHERE kind=? AND filename IS NOT NULL ORDER BY title",(catalogue,)).fetchall()
+                saved=db.execute(f"SELECT id,title,watched FROM library_item LEFT JOIN ({VIDEO_SHELF_PROGRESS}) USING(id) WHERE kind=? AND filename IS NOT NULL ORDER BY title",(catalogue,)).fetchall()
         if kind in {"pictures","guides","maps","documents"}:
             with closing(connect(self.server.database)) as db:
-                rows=db.execute("SELECT id,kind,title FROM discovery_item WHERE kind=? AND filename IS NOT NULL ORDER BY title",(name,)).fetchall()
+                rows=db.execute("SELECT id,kind,title FROM library_item WHERE kind=? AND filename IS NOT NULL ORDER BY title",(name,)).fetchall()
             if kind in {"pictures","documents"}:
                 body=self.import_form(kind)+body+category_grid(name,self.personal_cards(rows,{name}),"shelf")
                 if kind=="documents":body+=self.server.intel.library()
@@ -886,7 +886,7 @@ class Dashboard(BaseHTTPRequestHandler):
                       f'<section class="up-next" data-next="{next_url}"><div class="section-head"><h3>Up next</h3>{toggle}</div>{queue}</section>')
         remove=self.remove_form(key)
         if row["provider"]=="Internet Archive" and row["kind"] in ("Films","Shows"):
-            remove+=f'<form method=post action="/discover/add"><input type=hidden name=token value="{self.server.token}"><input type=hidden name=item value="{key}"><button>Check for missing episodes</button></form>'
+            remove+=f'<form method=post action="/discover/add"><input type=hidden name=token value="{self.server.token}"><input type=hidden name=item value="{key}"><button>Check for missing episodes or a compatible edition</button></form>'
         save_link="" if collection_view else f'<a href="{source}" download="{escape(row["title"].replace("/", "-")+"".join(path.suffixes))}">Save original file</a>'
         self.send_page(row["title"],f'<nav class=pills>{playlist}</nav><small>{escape(row["rights"])}</small>{save_link}{body}{remove}')
 
@@ -917,7 +917,7 @@ class Dashboard(BaseHTTPRequestHandler):
             self.send_page("Games", f'<h3>{escape(name.title())}</h3><nav class=pills><a href="/library/games">All puzzles</a></nav><iframe title="{name.title()} puzzle" class="kit-document puzzle-frame" src="/puzzle-file/{name}.html"></iframe>')
             return
         with closing(connect(self.server.database)) as db:
-            imported=db.execute("SELECT id,title,kind FROM discovery_item WHERE kind='Games' AND filename IS NOT NULL ORDER BY title").fetchall()
+            imported=db.execute("SELECT id,title,kind FROM library_item WHERE kind='Games' AND filename IS NOT NULL ORDER BY title").fetchall()
         cards = self.game_cards(installed)
         personal=self.personal_cards(imported,{"Games"})
         self.send_page("Games", '<a href="/discover?kind=Games">Browse more games →</a>'
@@ -1022,7 +1022,7 @@ class Dashboard(BaseHTTPRequestHandler):
                 JOIN (SELECT max(id) AS id FROM fetch GROUP BY source) last ON last.id=f.id
                 ORDER BY f.checked_at DESC
             """).fetchall()
-            completed = database.execute("""SELECT i.id,i.title,i.kind FROM discovery_item i JOIN chosen_download c ON c.source='discover-'||i.id
+            completed = database.execute("""SELECT i.id,i.title,i.kind FROM library_item i JOIN chosen_download c ON c.source='discover-'||i.id
                 WHERE i.filename IS NOT NULL AND NOT EXISTS(SELECT 1 FROM content_download q WHERE q.source=c.source) ORDER BY i.title""").fetchall() if downloads else []
             saved_feeds=database.execute("SELECT title,snapshot_id FROM chosen_download WHERE snapshot_id IS NOT NULL ORDER BY title").fetchall() if downloads else []
             progress = self.server.downloads.progress(database)
@@ -1647,7 +1647,7 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
         if self.local_request() and self.path == "/evidence/import":
             self.import_evidence()
             return
-        if not self.local_request() or self.path not in {"/openintel/action", "/episode-progress", "/download/remove", "/download/cancel", "/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
+        if not self.local_request() or self.path not in {"/openintel/action", "/library/move", "/episode-progress", "/download/remove", "/download/cancel", "/storage", "/wiki-edition", "/private-browser", "/news/location", "/narrate", "/retry", "/discover/pick", "/discover/save", "/discover/add", "/sync", "/evidence/capture", "/evidence/scotmesh", "/archive/backup", "/echolite"}:
             self.send_error(403)
             return
         length = self.headers.get("Content-Length", "")
@@ -1673,6 +1673,18 @@ with local decodes by UTC time. Timing alone cannot identify the sender.</p>
                 db.execute("DELETE FROM download_backoff WHERE source=?",(source,))
             self.server.downloads.wakeup.set()
             self.send_response(303);self.send_header("Location","/downloads");self.end_headers();return
+        if self.path == "/library/move":
+            key=fields.get("item",[""])[0]
+            shelf=fields.get("shelf",[""])[0]
+            if shelf not in personal_library.SHELVES:
+                self.send_error(400);return
+            with closing(connect(self.server.database)) as db,db:
+                changed=db.execute("""INSERT INTO library_shelf(id,kind)
+                    SELECT id,? FROM discovery_item WHERE id=? AND filename IS NOT NULL
+                    ON CONFLICT(id) DO UPDATE SET kind=excluded.kind""",(personal_library.SHELVES[shelf],key))
+                if not changed.rowcount:
+                    self.send_error(404);return
+            intel_screen.respond(self,{"shelf":shelf});return
         if self.path == "/episode-progress":
             try:
                 key=fields["item"][0]
